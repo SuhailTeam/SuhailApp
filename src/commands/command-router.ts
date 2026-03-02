@@ -39,8 +39,8 @@ const routes: Route[] = [
       // Try to extract the object name from phrases like "find my keys", "where is the remote"
       const findMatch = text.match(/find\s+(?:my\s+|the\s+)?(.+)/i);
       const whereMatch = text.match(/where\s+is\s+(?:my\s+|the\s+)?(.+)/i);
-      const objectName = findMatch?.[1] || whereMatch?.[1] || "object";
-      return { objectName: objectName.trim() };
+      const objectName = (findMatch?.[1] || whereMatch?.[1] || "object").trim().replace(/[.,?!]+$/, "");
+      return { objectName };
     },
   },
   {

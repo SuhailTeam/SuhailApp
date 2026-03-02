@@ -19,7 +19,7 @@ export class FaceEnrollCommand implements CommandHandler {
 
   async execute(session: AppSession, params?: Record<string, string>): Promise<void> {
     logger.info("Executing face enrollment...");
-    const sessionId = (session as any).id || "default";
+    const sessionId = params?._sessionId || "default";
 
     try {
       // If we have a pending enrollment and a name was provided, complete it

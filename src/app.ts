@@ -29,11 +29,21 @@ export class SuhailApp extends AppServer {
   /** Last spoken response per session, for "repeat" functionality */
   private lastResponses = new Map<string, string>();
 
+  /** Session IDs currently connected (tracked for the mini app UI) */
+  private connectedSessions = new Set<string>();
+
+  /** Rolling log of the last 20 activity events (served to the mini app UI) */
+  private activityLog: Array<{ time: string; event: string }> = [];
+
+  /** Server start time for uptime calculation */
+  private readonly startTime = Date.now();
+
   constructor() {
     super({
       packageName: config.packageName,
       apiKey: config.mentraApiKey,
       port: config.port,
+      publicDir: "./public",
     });
 
     this.faceEnrollHandler = new FaceEnrollCommand();
@@ -49,7 +59,40 @@ export class SuhailApp extends AppServer {
       "color-detect": new ColorDetectCommand(),
     };
 
+    this.registerApiRoutes();
     logger.info("SuhailApp initialized with all command handlers");
+  }
+
+  /**
+   * Registers /api/status and /api/activity routes on the SDK's Express instance.
+   * These power the mini app web UI served from /public.
+   */
+  private registerApiRoutes(): void {
+    const expressApp = this.getExpressApp();
+
+    expressApp.get("/api/status", (_req: any, res: any) => {
+      res.json({
+        online: true,
+        sessions: this.connectedSessions.size,
+        uptime: Math.floor((Date.now() - this.startTime) / 1000),
+      });
+    });
+
+    expressApp.get("/api/activity", (_req: any, res: any) => {
+      res.json(this.activityLog);
+    });
+
+    logger.info("Mini app API routes registered (/api/status, /api/activity)");
+  }
+
+  /**
+   * Appends an event to the rolling activity log (capped at 20 entries).
+   */
+  private logActivity(event: string): void {
+    this.activityLog.push({ time: new Date().toISOString(), event });
+    if (this.activityLog.length > 20) {
+      this.activityLog.splice(0, this.activityLog.length - 20);
+    }
   }
 
   /**
@@ -62,6 +105,9 @@ export class SuhailApp extends AppServer {
     userId: string
   ): Promise<void> {
     logger.info(`New session started: ${sessionId} (user: ${userId})`);
+
+    this.connectedSessions.add(sessionId);
+    this.logActivity(`جلسة جديدة (${userId})`);
 
     // Welcome the user
     await speakBilingual(session, messages.welcome);
@@ -83,6 +129,16 @@ export class SuhailApp extends AppServer {
   }
 
   /**
+   * Called when a session ends. Cleans up tracking state.
+   */
+  override async onStop(sessionId: string, userId: string, reason: string): Promise<void> {
+    this.connectedSessions.delete(sessionId);
+    this.lastResponses.delete(sessionId);
+    this.logActivity(`انتهت الجلسة (${reason})`);
+    logger.info(`Session stopped: ${sessionId} (user: ${userId}, reason: ${reason})`);
+  }
+
+  /**
    * Handles a voice transcription by routing it to the correct command.
    */
   private async handleTranscription(
@@ -94,13 +150,14 @@ export class SuhailApp extends AppServer {
       // Check if we're waiting for a name during face enrollment
       if (this.faceEnrollHandler.hasPendingEnrollment(sessionId)) {
         logger.info(`[${sessionId}] Completing pending face enrollment with name: "${text}"`);
-        await this.faceEnrollHandler.execute(session, { name: text });
+        await this.faceEnrollHandler.execute(session, { name: text, _sessionId: sessionId });
         return;
       }
 
       // Route the transcription to the correct command
       const route = routeCommand(text);
       logger.info(`[${sessionId}] Routed to command: ${route.command}`);
+      this.logActivity(`أمر صوتي: ${route.command}`);
 
       const handler = this.handlers[route.command];
       if (!handler) {
@@ -109,7 +166,7 @@ export class SuhailApp extends AppServer {
         return;
       }
 
-      await handler.execute(session, route.params);
+      await handler.execute(session, { ...route.params, _sessionId: sessionId });
     } catch (error) {
       logger.error(`[${sessionId}] Error handling transcription:`, error);
       await speakBilingual(session, messages.generalError);
@@ -135,13 +192,17 @@ export class SuhailApp extends AppServer {
 
       logger.info(`[${sessionId}] Button: ${buttonId} ${pressType}`);
 
-      if (buttonId === "right" && pressType === "short") {
+      if ((buttonId === "right" || buttonId === "camera") && pressType === "short") {
+        this.logActivity("زر يمين قصير ← وصف المشهد");
         await this.handlers["scene-summarize"].execute(session);
-      } else if (buttonId === "right" && pressType === "long") {
+      } else if ((buttonId === "right" || buttonId === "camera") && pressType === "long") {
+        this.logActivity("زر يمين طويل ← التعرف على الوجه");
         await this.handlers["face-recognize"].execute(session);
       } else if (buttonId === "left" && pressType === "short") {
+        this.logActivity("زر يسار قصير ← قراءة النص");
         await this.handlers["ocr-read-text"].execute(session);
       } else if (buttonId === "left" && pressType === "long") {
+        this.logActivity("زر يسار طويل ← إعادة آخر رد");
         await this.repeatLastResponse(session, sessionId);
       } else {
         logger.warn(`[${sessionId}] Unknown button event: ${buttonId} ${pressType}`);

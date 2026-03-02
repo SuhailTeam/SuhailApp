@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>سهيل — مساعد النظارات الذكية</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --surface: #1e293b;
+      --surface2: #263349;
+      --border: #334155;
+      --accent: #38bdf8;
+      --accent2: #818cf8;
+      --green: #4ade80;
+      --red: #f87171;
+      --yellow: #fbbf24;
+      --text: #f1f5f9;
+      --muted: #94a3b8;
+      --radius: 14px;
+      --shadow: 0 4px 24px rgba(0,0,0,0.35);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', 'Cairo', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding-bottom: 32px;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Header ─────────────────────────────── */
+    header {
+      background: linear-gradient(160deg, #1e3a5f 0%, #0f172a 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 28px 20px 24px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+    header::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse at 70% 30%, rgba(56,189,248,0.08) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .app-logo {
+      width: 64px;
+      height: 64px;
+      border-radius: 18px;
+      background: linear-gradient(135deg, #1d4ed8, #0ea5e9);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 30px;
+      font-weight: 900;
+      color: #fff;
+      margin: 0 auto 12px;
+      box-shadow: 0 8px 24px rgba(14,165,233,0.35);
+      letter-spacing: -1px;
+    }
+    header h1 {
+      font-size: 26px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      margin-bottom: 4px;
+    }
+    header .tagline {
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 16px;
+    }
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 20px;
+      padding: 5px 14px;
+      font-size: 12px;
+      color: var(--text);
+      backdrop-filter: blur(8px);
+    }
+    .dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: var(--muted);
+      flex-shrink: 0;
+    }
+    .dot.online {
+      background: var(--green);
+      box-shadow: 0 0 0 2px rgba(74,222,128,0.25);
+      animation: pulse 2s ease-in-out infinite;
+    }
+    .dot.offline { background: var(--red); }
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 0 0 2px rgba(74,222,128,0.25); }
+      50%       { box-shadow: 0 0 0 5px rgba(74,222,128,0); }
+    }
+
+    /* ── Main layout ─────────────────────────── */
+    main {
+      max-width: 480px;
+      margin: 0 auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    /* ── Stats row ───────────────────────────── */
+    .stats-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px 12px;
+      text-align: center;
+      box-shadow: var(--shadow);
+    }
+    .stat-value {
+      font-size: 26px;
+      font-weight: 800;
+      color: var(--accent);
+      line-height: 1;
+      margin-bottom: 5px;
+      font-variant-numeric: tabular-nums;
+    }
+    .stat-label {
+      font-size: 11px;
+      color: var(--muted);
+      font-weight: 500;
+    }
+
+    /* ── Generic card ────────────────────────── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px 16px;
+      box-shadow: var(--shadow);
+    }
+    .card-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .title-icon {
+      width: 30px;
+      height: 30px;
+      border-radius: 8px;
+      background: rgba(56,189,248,0.12);
+      border: 1px solid rgba(56,189,248,0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 15px;
+      flex-shrink: 0;
+    }
+    .card-title .en-sub {
+      margin-right: auto;
+      font-size: 11px;
+      color: var(--muted);
+      font-weight: 400;
+    }
+    [dir="rtl"] .card-title .en-sub { margin-right: 0; margin-left: auto; }
+
+    /* ── Command list ────────────────────────── */
+    .cmd-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .cmd-item:last-child { border-bottom: none; padding-bottom: 0; }
+    .cmd-item:first-child { padding-top: 0; }
+    .cmd-icon {
+      width: 38px;
+      height: 38px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+    .cmd-info { flex: 1; min-width: 0; }
+    .cmd-ar {
+      font-size: 14px;
+      font-weight: 700;
+      margin-bottom: 1px;
+    }
+    .cmd-en {
+      font-size: 11px;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    .tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+    .tag {
+      border-radius: 5px;
+      padding: 2px 7px;
+      font-size: 10px;
+      font-weight: 600;
+      line-height: 1.4;
+    }
+    .tag-ar {
+      background: rgba(74,222,128,0.1);
+      color: #86efac;
+      border: 1px solid rgba(74,222,128,0.2);
+    }
+    .tag-en {
+      background: rgba(56,189,248,0.1);
+      color: #7dd3fc;
+      border: 1px solid rgba(56,189,248,0.2);
+    }
+
+    /* ── Button mapping grid ─────────────────── */
+    .btn-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .btn-map {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 13px 10px;
+      text-align: center;
+    }
+    .btn-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      margin-bottom: 8px;
+    }
+    .btn-pill {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 9px;
+      font-weight: 800;
+      color: #fff;
+      flex-shrink: 0;
+    }
+    .btn-pill.right { background: #2563eb; }
+    .btn-pill.left  { background: #7c3aed; }
+    .btn-action-icon { font-size: 22px; margin-bottom: 5px; }
+    .btn-action-text {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text);
+      line-height: 1.3;
+    }
+
+    /* ── Activity log ────────────────────────── */
+    .live-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: rgba(248,113,113,0.12);
+      color: #fca5a5;
+      border: 1px solid rgba(248,113,113,0.2);
+      border-radius: 6px;
+      padding: 2px 7px;
+      font-size: 10px;
+      font-weight: 700;
+      margin-right: auto;
+    }
+    [dir="rtl"] .live-chip { margin-right: 0; margin-left: auto; }
+    .live-chip .live-dot {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: #f87171;
+      animation: pulse 1s ease-in-out infinite;
+    }
+    #activity-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+    }
+    #activity-list li {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 10px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 9px;
+    }
+    .log-bullet {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--accent2);
+      flex-shrink: 0;
+    }
+    .log-text {
+      font-size: 12px;
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .log-time {
+      font-size: 10px;
+      color: var(--muted);
+      flex-shrink: 0;
+      font-variant-numeric: tabular-nums;
+    }
+    .empty-msg {
+      text-align: center;
+      padding: 24px 0;
+      color: var(--muted);
+    }
+    .empty-msg .empty-icon { font-size: 30px; margin-bottom: 8px; }
+    .empty-msg p { font-size: 12px; }
+
+    /* ── Footer ──────────────────────────────── */
+    footer {
+      text-align: center;
+      padding: 4px 16px 0;
+      font-size: 11px;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    /* ── Animations ──────────────────────────── */
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .card, .stats-row { animation: fadeIn 0.35s ease both; }
+    .stats-row { animation-delay: 0.05s; }
+    .card:nth-child(2) { animation-delay: 0.10s; }
+    .card:nth-child(3) { animation-delay: 0.15s; }
+    .card:nth-child(4) { animation-delay: 0.20s; }
+    .card:nth-child(5) { animation-delay: 0.25s; }
+  </style>
+</head>
+<body>
+
+  <!-- ── Header ─────────────────────────────── -->
+  <header>
+    <div class="app-logo">س</div>
+    <h1>سهيل</h1>
+    <p class="tagline">Suhail · مساعد ذكي للنظارات الذكية</p>
+    <div class="status-badge">
+      <span class="dot" id="status-dot"></span>
+      <span id="status-label">جاري الاتصال...</span>
+    </div>
+  </header>
+
+  <main>
+
+    <!-- ── Stats ──────────────────────────────── -->
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-value" id="session-count">—</div>
+        <div class="stat-label">جلسات نشطة</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="uptime">—</div>
+        <div class="stat-label">وقت التشغيل</div>
+      </div>
+    </div>
+
+    <!-- ── Voice Commands ─────────────────────── -->
+    <div class="card">
+      <div class="card-title">
+        <span class="title-icon">🎙️</span>
+        الأوامر الصوتية
+        <span class="en-sub">Voice Commands</span>
+      </div>
+
+      <div class="cmd-item">
+        <div class="cmd-icon" style="background:rgba(56,189,248,0.1)">📸</div>
+        <div class="cmd-info">
+          <div class="cmd-ar">وصف المشهد</div>
+          <div class="cmd-en">Describe Scene</div>
+          <div class="tags">
+            <span class="tag tag-ar">وصف</span>
+            <span class="tag tag-ar">حولي</span>
+            <span class="tag tag-ar">ايش حولي</span>
+            <span class="tag tag-en">describe</span>
+            <span class="tag tag-en">surroundings</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="cmd-item">
+        <div class="cmd-icon" style="background:rgba(129,140,248,0.1)">👤</div>
+        <div class="cmd-info">
+          <div class="cmd-ar">التعرف على الوجه</div>
+          <div class="cmd-en">Face Recognition</div>
+          <div class="tags">
+            <span class="tag tag-ar">من هذا</span>
+            <span class="tag tag-ar">من قدامي</span>
+            <span class="tag tag-en">who is this</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="cmd-item">
+        <div class="cmd-icon" style="background:rgba(74,222,128,0.1)">📖</div>
+        <div class="cmd-info">
+          <div class="cmd-ar">قراءة النص</div>
+          <div class="cmd-en">Read Text (OCR)</div>
+          <div class="tags">
+            <span class="tag tag-ar">اقرأ</span>
+            <span class="tag tag-ar">نص</span>
+            <span class="tag tag-en">read</span>
+            <span class="tag tag-en">text</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="cmd-item">
+        <div class="cmd-icon" style="background:rgba(251,191,36,0.1)">💰</div>
+        <div class="cmd-info">
+          <div class="cmd-ar">التعرف على العملة</div>
+          <div class="cmd-en">Currency Recognition</div>
+          <div class="tags">
+            <span class="tag tag-ar">فلوس</span>
+            <span class="tag tag-ar">عملة</span>
+            <span class="tag tag-en">money</span>
+            <span class="tag tag-en">currency</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="cmd-item">
+        <div class="cmd-icon" style="background:rgba(248,113,113,0.1)">🔍</div>
+        <div class="cmd-info">
+          <div class="cmd-ar">إيجاد الأشياء</div>
+          <div class="cmd-en">Find Object</div>
+          <div class="tags">
+            <span class="tag tag-ar">وين</span>
+            <span class="tag tag-ar">ابحث</span>
+            <span class="tag tag-en">find</span>
+            <span class="tag tag-en">where is</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="cmd-item">
+        <div class="cmd-icon" style="background:rgba(52,211,153,0.1)">🎨</div>
+        <div class="cmd-info">
+          <div class="cmd-ar">كشف اللون</div>
+          <div class="cmd-en">Detect Color</div>
+          <div class="tags">
+            <span class="tag tag-ar">لون</span>
+            <span class="tag tag-en">color</span>
+            <span class="tag tag-en">colour</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="cmd-item">
+        <div class="cmd-icon" style="background:rgba(251,191,36,0.1)">👥</div>
+        <div class="cmd-info">
+          <div class="cmd-ar">تسجيل وجه</div>
+          <div class="cmd-en">Enroll Face</div>
+          <div class="tags">
+            <span class="tag tag-ar">سجل</span>
+            <span class="tag tag-ar">احفظ</span>
+            <span class="tag tag-en">enroll</span>
+            <span class="tag tag-en">save face</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="cmd-item">
+        <div class="cmd-icon" style="background:rgba(129,140,248,0.1)">💬</div>
+        <div class="cmd-info">
+          <div class="cmd-ar">سؤال بصري</div>
+          <div class="cmd-en">Visual Q&amp;A</div>
+          <div class="tags">
+            <span class="tag tag-ar">أي سؤال آخر</span>
+            <span class="tag tag-en">any question</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Button Mappings ────────────────────── -->
+    <div class="card">
+      <div class="card-title">
+        <span class="title-icon">🔘</span>
+        أزرار النظارات
+        <span class="en-sub">Glasses Buttons</span>
+      </div>
+      <div class="btn-grid">
+
+        <div class="btn-map">
+          <div class="btn-label">
+            <span class="btn-pill right">R</span>
+            ضغطة قصيرة
+          </div>
+          <div class="btn-action-icon">📸</div>
+          <div class="btn-action-text">وصف المشهد</div>
+        </div>
+
+        <div class="btn-map">
+          <div class="btn-label">
+            <span class="btn-pill right">R</span>
+            ضغطة طويلة
+          </div>
+          <div class="btn-action-icon">👤</div>
+          <div class="btn-action-text">التعرف على الوجه</div>
+        </div>
+
+        <div class="btn-map">
+          <div class="btn-label">
+            <span class="btn-pill left">L</span>
+            ضغطة قصيرة
+          </div>
+          <div class="btn-action-icon">📖</div>
+          <div class="btn-action-text">قراءة النص</div>
+        </div>
+
+        <div class="btn-map">
+          <div class="btn-label">
+            <span class="btn-pill left">L</span>
+            ضغطة طويلة
+          </div>
+          <div class="btn-action-icon">🔁</div>
+          <div class="btn-action-text">إعادة آخر رد</div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ── Activity Log ───────────────────────── -->
+    <div class="card">
+      <div class="card-title">
+        <span class="title-icon">📋</span>
+        النشاط الأخير
+        <span class="live-chip">
+          <span class="live-dot"></span>
+          مباشر
+        </span>
+      </div>
+      <ul id="activity-list">
+        <li style="border:none;background:transparent;justify-content:center">
+          <div class="empty-msg">
+            <div class="empty-icon">📡</div>
+            <p>لا توجد نشاطات بعد</p>
+            <p style="margin-top:4px;font-size:10px">انتظر اتصال النظارات</p>
+          </div>
+        </li>
+      </ul>
+    </div>
+
+    <!-- ── Footer ─────────────────────────────── -->
+    <footer>
+      مشروع تخرج SWE 496 · كلية علوم الحاسب والمعلومات<br>
+      جامعة الملك سعود · 2024-2025
+    </footer>
+
+  </main>
+
+  <script>
+    const STATUS_URL   = '/api/status';
+    const ACTIVITY_URL = '/api/activity';
+    const POLL_MS      = 5000;
+
+    function formatUptime(secs) {
+      const h = Math.floor(secs / 3600);
+      const m = Math.floor((secs % 3600) / 60);
+      const s = secs % 60;
+      if (h > 0) return h + ':' + String(m).padStart(2,'0') + 'س';
+      return String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+    }
+
+    function timeAgo(iso) {
+      const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+      if (diff < 5)    return 'الآن';
+      if (diff < 60)   return diff + ' ث';
+      if (diff < 3600) return Math.floor(diff / 60) + ' د';
+      return Math.floor(diff / 3600) + ' س';
+    }
+
+    async function fetchStatus() {
+      try {
+        const r = await fetch(STATUS_URL);
+        if (!r.ok) throw new Error();
+        const d = await r.json();
+
+        document.getElementById('status-dot').className   = 'dot online';
+        document.getElementById('status-label').textContent = 'متصل';
+        document.getElementById('session-count').textContent = String(d.sessions ?? 0);
+        document.getElementById('uptime').textContent       = formatUptime(d.uptime ?? 0);
+      } catch {
+        document.getElementById('status-dot').className   = 'dot offline';
+        document.getElementById('status-label').textContent = 'غير متصل';
+        document.getElementById('session-count').textContent = '—';
+        document.getElementById('uptime').textContent       = '—';
+      }
+    }
+
+    async function fetchActivity() {
+      try {
+        const r = await fetch(ACTIVITY_URL);
+        if (!r.ok) throw new Error();
+        const events = await r.json();
+
+        const list = document.getElementById('activity-list');
+        list.innerHTML = '';
+
+        if (!events.length) {
+          const li = document.createElement('li');
+          li.style.cssText = 'border:none;background:transparent;justify-content:center';
+          const div = document.createElement('div');
+          div.className = 'empty-msg';
+          const icon = document.createElement('div');
+          icon.className = 'empty-icon';
+          icon.textContent = '📡';
+          const p1 = document.createElement('p');
+          p1.textContent = 'لا توجد نشاطات بعد';
+          const p2 = document.createElement('p');
+          p2.style.cssText = 'margin-top:4px;font-size:10px';
+          p2.textContent = 'انتظر اتصال النظارات';
+          div.appendChild(icon); div.appendChild(p1); div.appendChild(p2);
+          li.appendChild(div);
+          list.appendChild(li);
+          return;
+        }
+
+        // Show last 10, most-recent first
+        const recent = events.slice(-10).reverse();
+        recent.forEach(function(entry) {
+          const li     = document.createElement('li');
+          const bullet = document.createElement('span');
+          bullet.className = 'log-bullet';
+          const txt  = document.createElement('span');
+          txt.className = 'log-text';
+          txt.textContent = entry.event;   // textContent — XSS safe
+          const time = document.createElement('span');
+          time.className = 'log-time';
+          time.textContent = timeAgo(entry.time);
+          li.appendChild(bullet);
+          li.appendChild(txt);
+          li.appendChild(time);
+          list.appendChild(li);
+        });
+      } catch {
+        // silently ignore on network error
+      }
+    }
+
+    // Initial load
+    fetchStatus();
+    fetchActivity();
+
+    // Poll
+    setInterval(fetchStatus,   POLL_MS);
+    setInterval(fetchActivity, POLL_MS);
+  </script>
+</body>
+</html>
