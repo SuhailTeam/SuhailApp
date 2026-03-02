@@ -1,0 +1,79 @@
+import { Logger } from "../utils/logger";
+import * as visionService from "./vision-service";
+import * as ocrService from "./ocr-service";
+import * as faceService from "./face-service";
+import type {
+  VisionResponse,
+  OcrResponse,
+  FaceRecognitionResult,
+  ObjectDetectionResult,
+  CurrencyResult,
+  ColorResult,
+} from "../types";
+
+const logger = new Logger("AIHandler");
+
+/**
+ * Unified AI service facade.
+ * Routes requests to the correct underlying service.
+ */
+export class AIHandler {
+  /** Describe a scene from a photo */
+  async describeScene(imageBase64: string): Promise<VisionResponse> {
+    logger.info("AI Handler → Scene Description");
+    return visionService.describeScene(imageBase64);
+  }
+
+  /** Extract text from a photo via OCR */
+  async readText(imageBase64: string): Promise<OcrResponse> {
+    logger.info("AI Handler → OCR Text Extraction");
+    return ocrService.extractText(imageBase64);
+  }
+
+  /** Recognize a face in a photo */
+  async recognizeFace(imageBase64: string): Promise<FaceRecognitionResult> {
+    logger.info("AI Handler → Face Recognition");
+    return faceService.recognizeFace(imageBase64);
+  }
+
+  /** Enroll a new face with a name */
+  async enrollFace(name: string, imageBase64: string): Promise<boolean> {
+    logger.info(`AI Handler → Face Enrollment for "${name}"`);
+    return faceService.enrollFace(name, imageBase64);
+  }
+
+  /** Find a specific object in a photo */
+  async findObject(imageBase64: string, objectName: string): Promise<ObjectDetectionResult> {
+    logger.info(`AI Handler → Find Object: "${objectName}"`);
+    const result = await visionService.detectObject(imageBase64, objectName);
+    return {
+      objectName,
+      found: result.found,
+      location: result.location,
+      confidence: result.confidence,
+    };
+  }
+
+  /** Recognize currency in a photo */
+  async recognizeCurrency(imageBase64: string): Promise<CurrencyResult> {
+    logger.info("AI Handler → Currency Recognition");
+    const result = await visionService.recognizeCurrency(imageBase64);
+    return {
+      denomination: result.denomination,
+      currency: result.currency,
+      confidence: result.confidence,
+    };
+  }
+
+  /** Answer a visual question about a photo */
+  async answerVisualQuestion(imageBase64: string, question: string): Promise<VisionResponse> {
+    logger.info("AI Handler → Visual QA");
+    return visionService.answerVisualQuestion(imageBase64, question);
+  }
+
+  /** Detect the dominant color in a photo */
+  async detectColor(imageBase64: string): Promise<ColorResult> {
+    logger.info("AI Handler → Color Detection");
+    return visionService.detectColor(imageBase64);
+  }
+}

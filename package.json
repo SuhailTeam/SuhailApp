@@ -1,0 +1,19 @@
+{
+  "name": "suhail",
+  "version": "1.0.0",
+  "description": "Suhail — AI Smart Glasses for the Visually Impaired (MentraOS App)",
+  "main": "src/index.ts",
+  "scripts": {
+    "start": "bun run src/index.ts",
+    "dev": "bun run --watch src/index.ts",
+    "build": "bun build src/index.ts --outdir ./dist --target bun",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@mentra/sdk": "latest"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.3.0"
+  }
+}
