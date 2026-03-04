@@ -13,8 +13,9 @@ const ai = new AIHandler();
  * Captures a photo and identifies the denomination of money.
  */
 export class CurrencyRecognizeCommand implements CommandHandler {
-  async execute(session: AppSession): Promise<void> {
+  async execute(session: AppSession, params?: Record<string, string>): Promise<void> {
     logger.info("Executing currency recognition...");
+    const sessionId = params?._sessionId;
 
     try {
       await speakBilingual(session, messages.processing);
@@ -31,10 +32,10 @@ export class CurrencyRecognizeCommand implements CommandHandler {
       await speakBilingual(session, {
         ar: `هذي ورقة ${result.denomination} ${result.currency === "SAR" ? "ريال" : result.currency}`,
         en: `This is a ${result.denomination} ${result.currency} bill`,
-      });
+      }, sessionId);
     } catch (error) {
       logger.error("Currency recognition failed:", error);
-      await speakBilingual(session, messages.generalError);
+      await speakBilingual(session, messages.generalError, sessionId);
     }
   }
 }

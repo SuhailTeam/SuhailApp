@@ -15,6 +15,7 @@ const ai = new AIHandler();
 export class FindObjectCommand implements CommandHandler {
   async execute(session: AppSession, params?: Record<string, string>): Promise<void> {
     const objectName = params?.objectName || "object";
+    const sessionId = params?._sessionId;
     logger.info(`Executing find object: "${objectName}"...`);
 
     try {
@@ -36,16 +37,16 @@ export class FindObjectCommand implements CommandHandler {
         await speakBilingual(session, {
           ar: `${objectName} موجود ${result.location}`,
           en: `${objectName} is ${result.location}`,
-        });
+        }, sessionId);
       } else {
         await speakBilingual(session, {
           ar: `ما قدرت ألاقي ${objectName} في الصورة.`,
           en: `I couldn't find ${objectName} in the image.`,
-        });
+        }, sessionId);
       }
     } catch (error) {
       logger.error("Find object failed:", error);
-      await speakBilingual(session, messages.generalError);
+      await speakBilingual(session, messages.generalError, sessionId);
     }
   }
 }

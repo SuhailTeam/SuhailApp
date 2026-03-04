@@ -50,10 +50,8 @@ export interface FaceRecognitionResult {
 
 /** Face enrollment data stored in memory */
 export interface FaceRecord {
-  id: string;
   name: string;
-  embedding: number[];
-  createdAt: Date;
+  descriptor: number[];
 }
 
 /** Object detection result */

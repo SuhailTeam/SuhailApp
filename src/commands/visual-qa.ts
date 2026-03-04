@@ -15,6 +15,7 @@ const ai = new AIHandler();
 export class VisualQACommand implements CommandHandler {
   async execute(session: AppSession, params?: Record<string, string>): Promise<void> {
     const question = params?.question || "What do you see?";
+    const sessionId = params?._sessionId;
     logger.info(`Executing Visual QA: "${question}"`);
 
     try {
@@ -29,10 +30,10 @@ export class VisualQACommand implements CommandHandler {
       const result = await ai.answerVisualQuestion(photo, question);
       logger.info(`VQA result (confidence: ${result.confidence}): ${result.description}`);
 
-      await speak(session, result.description);
+      await speak(session, result.description, sessionId);
     } catch (error) {
       logger.error("Visual QA failed:", error);
-      await speakBilingual(session, messages.generalError);
+      await speakBilingual(session, messages.generalError, sessionId);
     }
   }
 }

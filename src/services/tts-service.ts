@@ -5,28 +5,46 @@ import { Logger } from "../utils/logger";
 
 const logger = new Logger("TTS");
 
+/** Stores the last spoken response per session for repeat functionality */
+const lastResponses = new Map<string, string>();
+
 /**
  * Speaks a bilingual message to the user through the glasses speakers.
  * Selects the appropriate language based on config.
  */
 export async function speakBilingual(
   session: AppSession,
-  message: BilingualMessage
+  message: BilingualMessage,
+  sessionId?: string
 ): Promise<void> {
   const text = message[config.defaultLanguage];
-  await speak(session, text);
+  await speak(session, text, sessionId);
 }
 
 /**
  * Speaks a text string to the user through the glasses speakers.
+ * Optionally tracks the response for repeat functionality.
  */
-export async function speak(session: AppSession, text: string): Promise<void> {
+export async function speak(session: AppSession, text: string, sessionId?: string): Promise<void> {
   try {
     logger.info(`Speaking: "${text.substring(0, 80)}${text.length > 80 ? "..." : ""}"`);
     await session.audio.speak(text);
+    if (sessionId) {
+      lastResponses.set(sessionId, text);
+    }
   } catch (error) {
     logger.error("TTS failed:", error);
   }
+}
+
+/** Returns the last spoken response for a session, if any */
+export function getLastResponse(sessionId: string): string | undefined {
+  return lastResponses.get(sessionId);
+}
+
+/** Clears the stored last response for a session */
+export function clearLastResponse(sessionId: string): void {
+  lastResponses.delete(sessionId);
 }
 
 /**

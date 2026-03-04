@@ -49,7 +49,7 @@ export async function describeScene(imageBase64: string): Promise<VisionResponse
 
     return {
       description,
-      confidence: 0.90, // Static confidence as OpenRouter doesn't natively return vision confidence
+      confidence: 0.90,
     };
   } catch (error) {
     logger.error("Failed to connect to OpenRouter API", error);
