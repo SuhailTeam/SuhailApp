@@ -4,7 +4,6 @@ import * as ocrService from "./ocr-service";
 import * as faceService from "./face-service";
 import type {
   VisionResponse,
-  OcrResponse,
   FaceRecognitionResult,
   ObjectDetectionResult,
   CurrencyResult,
@@ -19,9 +18,10 @@ const logger = new Logger("AIHandler");
  */
 export class AIHandler {
   /** Configure optional session simple storage for face persistence */
-  configureFaceStorage(
-    simpleStorage?: { get: (key: string) => Promise<string | null | undefined>; set: (key: string, value: string) => Promise<void> }
-  ): void {
+  configureFaceStorage(simpleStorage?: {
+    get: (key: string) => Promise<string | null | undefined>;
+    set: (key: string, value: string) => Promise<void>;
+  }): void {
     faceService.configureSimpleStorage(simpleStorage);
   }
 
@@ -37,7 +37,7 @@ export class AIHandler {
   }
 
   /** Extract text from a photo via OCR */
-  async readText(imageBase64: string): Promise<OcrResponse> {
+  async readText(imageBase64: string): Promise<string> {
     logger.info("AI Handler → OCR Text Extraction");
     return ocrService.extractText(imageBase64);
   }
@@ -55,7 +55,10 @@ export class AIHandler {
   }
 
   /** Find a specific object in a photo */
-  async findObject(imageBase64: string, objectName: string): Promise<ObjectDetectionResult> {
+  async findObject(
+    imageBase64: string,
+    objectName: string,
+  ): Promise<ObjectDetectionResult> {
     logger.info(`AI Handler → Find Object: "${objectName}"`);
     const result = await visionService.detectObject(imageBase64, objectName);
     return {
@@ -78,7 +81,10 @@ export class AIHandler {
   }
 
   /** Answer a visual question about a photo */
-  async answerVisualQuestion(imageBase64: string, question: string): Promise<VisionResponse> {
+  async answerVisualQuestion(
+    imageBase64: string,
+    question: string,
+  ): Promise<VisionResponse> {
     logger.info("AI Handler → Visual QA");
     return visionService.answerVisualQuestion(imageBase64, question);
   }
