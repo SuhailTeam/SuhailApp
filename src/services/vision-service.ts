@@ -9,34 +9,34 @@ const logger = new Logger("VisionService");
  * TODO: Replace mock with real OpenAI API call.
  */
 export async function describeScene(imageBase64: string): Promise<VisionResponse> {
-  logger.info("Sending image to vision AI service for scene description...");
+  logger.info("Sending image to vision LLM for scene description...");
 
-  try {
-    const response = await fetch("http://localhost:8000/describe-scene", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        image_base64: imageBase64,
-      }),
-    });
+  // TODO: Implement real OpenAI GPT-4o vision API call
+  // const response = await fetch("https://api.openai.com/v1/chat/completions", {
+  //   method: "POST",
+  //   headers: {
+  //     "Content-Type": "application/json",
+  //     "Authorization": `Bearer ${config.openaiApiKey}`,
+  //   },
+  //   body: JSON.stringify({
+  //     model: "gpt-4o",
+  //     messages: [{
+  //       role: "user",
+  //       content: [
+  //         { type: "text", text: "Describe this scene in detail for a visually impaired person. Be concise but informative." },
+  //         { type: "image_url", image_url: { url: `data:image/jpeg;base64,${imageBase64}` } },
+  //       ],
+  //     }],
+  //     max_tokens: 300,
+  //   }),
+  // });
 
-    if (!response.ok) {
-      throw new Error(`AI service failed with status ${response.status}`);
-    }
-
-    const data = await response.json();
-    logger.info(`Received scene description: ${data.description}`);
-
-    return {
-      description: data.description,
-      confidence: data.confidence,
-    };
-  } catch (error) {
-    logger.error("Failed to connect to AI vision service", error);
-    throw error;
-  }
+  logger.info("[MOCK] Returning mock scene description");
+  return {
+    description:
+      "You are in a bright indoor room. There is a desk with a laptop in front of you, and a window to your left letting in natural light. A bookshelf is visible against the far wall.",
+    confidence: 0.92,
+  };
 }
 
 /**
