@@ -5,117 +5,285 @@ import type { VisionResponse } from "../types";
 const logger = new Logger("VisionService");
 
 /**
- * Sends a photo to a vision LLM (GPT-4o) for scene description.
- * TODO: Replace mock with real OpenAI API call.
+ * Sends a photo to OpenRouter (Qwen3-VL) for a scene description in Arabic.
  */
 export async function describeScene(imageBase64: string): Promise<VisionResponse> {
-  logger.info("Sending image to vision AI service for scene description...");
+  logger.info("Sending image to OpenRouter API (Qwen3-VL)...");
 
   try {
-    const response = await fetch("http://localhost:8000/describe-scene", {
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
-        "Content-Type": "application/json",
+        "Authorization": `Bearer ${config.openRouterApiKey}`,
+        "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        image_base64: imageBase64,
-      }),
+        model: "qwen/qwen3-vl-235b-a22b-thinking",
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: "Describe this scene in detail for a visually impaired person. Respond in Arabic."
+              },
+              {
+                type: "image_url",
+                image_url: {
+                  url: `data:image/jpeg;base64,${imageBase64}`
+                }
+              }
+            ]
+          }
+        ]
+      })
     });
 
     if (!response.ok) {
-      throw new Error(`AI service failed with status ${response.status}`);
+      throw new Error(`OpenRouter API failed with status ${response.status}`);
     }
 
     const data = await response.json();
-    logger.info(`Received scene description: ${data.description}`);
+    const description = data.choices?.[0]?.message?.content || "عذرًا، لم أتمكن من الحصول على وصف للصورة.";
+    logger.info(`Received scene description: ${description}`);
 
     return {
-      description: data.description,
-      confidence: data.confidence,
+      description,
+      confidence: 0.90, // Static confidence as OpenRouter doesn't natively return vision confidence
     };
   } catch (error) {
-    logger.error("Failed to connect to AI vision service", error);
+    logger.error("Failed to connect to OpenRouter API", error);
     throw error;
   }
 }
 
 /**
  * Sends a photo and a question to a vision LLM for visual question answering.
- * TODO: Replace mock with real OpenAI API call.
+ * Uses OpenRouter (Qwen3-VL) to answer the user's question, responding in Arabic.
  */
 export async function answerVisualQuestion(
   imageBase64: string,
   question: string
 ): Promise<VisionResponse> {
-  logger.info(`Sending image + question to vision LLM: "${question}"`);
+  logger.info(`Sending image + question to OpenRouter (Qwen3-VL): "${question}"`);
 
-  // TODO: Implement real OpenAI GPT-4o vision API call with the user's question
-  // Similar to describeScene but with the user's question as the text prompt
+  try {
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${config.openRouterApiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: "qwen/qwen3-vl-235b-a22b-thinking",
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: `${question}\n\nAnswer the question above based on the image. Respond in Arabic.`
+              },
+              {
+                type: "image_url",
+                image_url: {
+                  url: `data:image/jpeg;base64,${imageBase64}`
+                }
+              }
+            ]
+          }
+        ]
+      })
+    });
 
-  logger.info("[MOCK] Returning mock VQA answer");
-  return {
-    description: `Based on the image, the answer to "${question}" is: Yes, the area appears clear and safe to walk through.`,
-    confidence: 0.88,
-  };
+    if (!response.ok) {
+      throw new Error(`OpenRouter API failed with status ${response.status}`);
+    }
+
+    const data = await response.json();
+    const description = data.choices?.[0]?.message?.content || "عذرًا، لم أتمكن من الإجابة على السؤال.";
+    logger.info(`Received VQA answer: ${description}`);
+
+    return {
+      description,
+      confidence: 0.90,
+    };
+  } catch (error) {
+    logger.error("Failed to connect to OpenRouter API for VQA", error);
+    throw error;
+  }
 }
 
 /**
- * Sends a photo to a vision LLM for currency/money recognition.
- * TODO: Replace mock with real API call.
+ * Sends a photo to OpenRouter (Qwen3-VL) for currency/money recognition.
  */
 export async function recognizeCurrency(imageBase64: string): Promise<{
   denomination: string;
   currency: string;
   confidence: number;
 }> {
-  logger.info("Sending image to vision LLM for currency recognition...");
+  logger.info("Sending image to OpenRouter for currency recognition...");
 
-  // TODO: Implement real API call for currency recognition
+  try {
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${config.openRouterApiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: "qwen/qwen3-vl-235b-a22b-thinking",
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: "Identify the currency and denomination of the money in this image. Respond ONLY with a raw JSON object (no markdown) containing 'denomination' (string, e.g. '50') and 'currency' (string, e.g. 'SAR')."
+              },
+              {
+                type: "image_url",
+                image_url: {
+                  url: `data:image/jpeg;base64,${imageBase64}`
+                }
+              }
+            ]
+          }
+        ]
+      })
+    });
 
-  logger.info("[MOCK] Returning mock currency result");
-  return {
-    denomination: "50",
-    currency: "SAR",
-    confidence: 0.95,
-  };
+    if (!response.ok) {
+      throw new Error(`OpenRouter API failed with status ${response.status}`);
+    }
+
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content || "{}";
+    const cleanedContent = content.replace(/```json/g, "").replace(/```/g, "").trim();
+    const parsed = JSON.parse(cleanedContent);
+
+    return {
+      denomination: parsed.denomination || "0",
+      currency: parsed.currency || "UNKNOWN",
+      confidence: 0.90,
+    };
+  } catch (error) {
+    logger.error("Failed to recognize currency via OpenRouter API", error);
+    throw error;
+  }
 }
 
 /**
- * Sends a photo to a vision LLM for object detection/location.
- * TODO: Replace mock with real API call.
+ * Sends a photo to OpenRouter (Qwen3-VL) for object detection/location.
  */
 export async function detectObject(
   imageBase64: string,
   targetObject: string
 ): Promise<{ found: boolean; location: string; confidence: number }> {
-  logger.info(`Searching for "${targetObject}" in image...`);
+  logger.info(`Searching for "${targetObject}" via OpenRouter...`);
 
-  // TODO: Implement real object detection API call
+  try {
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${config.openRouterApiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: "qwen/qwen3-vl-235b-a22b-thinking",
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: `Look for "${targetObject}" in this image. Respond ONLY with a raw JSON object (no markdown) containing 'found' (boolean) and 'location' (string, a brief description of where it is in Arabic, or empty string if not found).`
+              },
+              {
+                type: "image_url",
+                image_url: {
+                  url: `data:image/jpeg;base64,${imageBase64}`
+                }
+              }
+            ]
+          }
+        ]
+      })
+    });
 
-  logger.info("[MOCK] Returning mock object detection result");
-  return {
-    found: true,
-    location: "to your right, on the table",
-    confidence: 0.87,
-  };
+    if (!response.ok) {
+      throw new Error(`OpenRouter API failed with status ${response.status}`);
+    }
+
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content || "{}";
+    const cleanedContent = content.replace(/```json/g, "").replace(/```/g, "").trim();
+    const parsed = JSON.parse(cleanedContent);
+
+    return {
+      found: !!parsed.found,
+      location: parsed.location || "",
+      confidence: 0.90,
+    };
+  } catch (error) {
+    logger.error("Failed to detect object via OpenRouter API", error);
+    throw error;
+  }
 }
 
 /**
- * Analyzes the center region of an image to detect the dominant color.
- * TODO: Replace mock with real color analysis (can be done client-side or via API).
+ * Analyzes the center region of an image to detect the dominant color using OpenRouter.
  */
 export async function detectColor(imageBase64: string): Promise<{
   colorName: string;
   hex: string;
 }> {
-  logger.info("Analyzing image for dominant color...");
+  logger.info("Analyzing image for dominant color via OpenRouter...");
 
-  // TODO: Implement real color detection
-  // This could use a simple image processing library or a vision API
+  try {
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${config.openRouterApiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: "qwen/qwen3-vl-235b-a22b-thinking",
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: "Identify the dominant color in the center of this image. Respond ONLY with a raw JSON object (no markdown) containing 'colorName' (the name of the color in Arabic) and 'hex' (the hex code of the color)."
+              },
+              {
+                type: "image_url",
+                image_url: {
+                  url: `data:image/jpeg;base64,${imageBase64}`
+                }
+              }
+            ]
+          }
+        ]
+      })
+    });
 
-  logger.info("[MOCK] Returning mock color result");
-  return {
-    colorName: "Navy Blue",
-    hex: "#000080",
-  };
+    if (!response.ok) {
+      throw new Error(`OpenRouter API failed with status ${response.status}`);
+    }
+
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content || "{}";
+    const cleanedContent = content.replace(/```json/g, "").replace(/```/g, "").trim();
+    const parsed = JSON.parse(cleanedContent);
+
+    return {
+      colorName: parsed.colorName || "غير معروف",
+      hex: parsed.hex || "#000000",
+    };
+  } catch (error) {
+    logger.error("Failed to detect color via OpenRouter API", error);
+    throw error;
+  }
 }

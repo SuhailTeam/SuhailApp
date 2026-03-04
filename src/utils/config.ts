@@ -14,6 +14,9 @@ export const config = {
   /** OpenAI API key for GPT-4o vision */
   openaiApiKey: process.env.OPENAI_API_KEY || "",
 
+  /** OpenRouter API key for Qwen3-VL */
+  openRouterApiKey: process.env.OPENROUTER_API_KEY || "",
+
   /** Google Cloud Vision API key for OCR */
   googleCloudVisionApiKey: process.env.GOOGLE_CLOUD_VISION_API_KEY || "",
 
