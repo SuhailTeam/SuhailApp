@@ -10,6 +10,7 @@ logger.info(`Port: ${config.port}`);
 logger.info(`Language: ${config.defaultLanguage}`);
 
 const app = new SuhailApp();
+await app.initialize();
 app.start();
 
 logger.info(`Suhail server is running on port ${config.port}`);

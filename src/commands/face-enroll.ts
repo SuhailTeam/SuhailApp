@@ -1,7 +1,7 @@
 import type { AppSession } from "@mentra/sdk";
 import type { CommandHandler } from "../types";
 import { AIHandler } from "../services/ai-handler";
-import { speak, speakBilingual, messages } from "../services/tts-service";
+import { speakBilingual, messages } from "../services/tts-service";
 import { capturePhoto } from "../utils/image-utils";
 import { Logger } from "../utils/logger";
 
@@ -32,8 +32,8 @@ export class FaceEnrollCommand implements CommandHandler {
 
         if (success) {
           await speakBilingual(session, {
-            ar: `تم تسجيل ${name} بنجاح.`,
-            en: `${name} has been enrolled successfully.`,
+            ar: `تم حفظ ${name}`,
+            en: `${name} has been enrolled`,
           });
         } else {
           await speakBilingual(session, {

@@ -8,6 +8,7 @@ import { FindObjectCommand } from "./commands/find-object";
 import { CurrencyRecognizeCommand } from "./commands/currency-recognize";
 import { VisualQACommand } from "./commands/visual-qa";
 import { ColorDetectCommand } from "./commands/color-detect";
+import { AIHandler } from "./services/ai-handler";
 import { speak, speakBilingual, messages } from "./services/tts-service";
 import { config } from "./utils/config";
 import { Logger } from "./utils/logger";
@@ -28,6 +29,8 @@ export class SuhailApp extends AppServer {
 
   /** Last spoken response per session, for "repeat" functionality */
   private lastResponses = new Map<string, string>();
+  private ai = new AIHandler();
+  private faceStorageConfigured = false;
 
   /** Session IDs currently connected (tracked for the mini app UI) */
   private connectedSessions = new Set<string>();
@@ -61,6 +64,11 @@ export class SuhailApp extends AppServer {
 
     this.registerApiRoutes();
     logger.info("SuhailApp initialized with all command handlers");
+  }
+
+  /** Loads persisted face records before the server starts accepting sessions. */
+  async initialize(): Promise<void> {
+    await this.ai.loadPersistedFaces();
   }
 
   /**
@@ -105,6 +113,12 @@ export class SuhailApp extends AppServer {
     userId: string
   ): Promise<void> {
     logger.info(`New session started: ${sessionId} (user: ${userId})`);
+
+    if (!this.faceStorageConfigured) {
+      this.ai.configureFaceStorage(session.simpleStorage);
+      await this.ai.loadPersistedFaces();
+      this.faceStorageConfigured = true;
+    }
 
     this.connectedSessions.add(sessionId);
     this.logActivity(`جلسة جديدة (${userId})`);

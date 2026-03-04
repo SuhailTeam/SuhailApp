@@ -1,7 +1,7 @@
 import type { AppSession } from "@mentra/sdk";
 import type { CommandHandler } from "../types";
 import { AIHandler } from "../services/ai-handler";
-import { speak, speakBilingual, messages } from "../services/tts-service";
+import { speakBilingual, messages } from "../services/tts-service";
 import { capturePhoto } from "../utils/image-utils";
 import { Logger } from "../utils/logger";
 
@@ -35,8 +35,8 @@ export class FaceRecognizeCommand implements CommandHandler {
         });
       } else {
         await speakBilingual(session, {
-          ar: "ما أعرف هذا الشخص. تقدر تسجله بقول 'سجل هذا الشخص'.",
-          en: "I don't recognize this person. You can enroll them by saying 'enroll this person'.",
+          ar: "لا أعرف هذا الشخص",
+          en: "I don't recognise this person",
         });
       }
     } catch (error) {
