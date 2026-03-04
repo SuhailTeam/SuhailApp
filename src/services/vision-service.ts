@@ -4,11 +4,22 @@ import type { VisionResponse } from "../types";
 
 const logger = new Logger("VisionService");
 
+/** Returns the language instruction based on config */
+function langInstruction(): string {
+  return config.defaultLanguage === "ar"
+    ? "Respond in Arabic."
+    : "Respond in English.";
+}
+
+function langName(): string {
+  return config.defaultLanguage === "ar" ? "Arabic" : "English";
+}
+
 /**
- * Sends a photo to OpenRouter (Qwen3-VL) for a scene description in Arabic.
+ * Sends a photo to OpenRouter for a scene description.
  */
 export async function describeScene(imageBase64: string): Promise<VisionResponse> {
-  logger.info("Sending image to OpenRouter API (Qwen3-VL)...");
+  logger.info("Sending image to OpenRouter API...");
 
   try {
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -18,14 +29,14 @@ export async function describeScene(imageBase64: string): Promise<VisionResponse
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        model: "qwen/qwen3-vl-235b-a22b-thinking",
+        model: "google/gemini-2.5-flash-lite",
         messages: [
           {
             role: "user",
             content: [
               {
                 type: "text",
-                text: "Describe this scene in detail for a visually impaired person. Respond in Arabic."
+                text: `Describe this scene in detail for a visually impaired person. Be concise but informative. ${langInstruction()}`
               },
               {
                 type: "image_url",
@@ -44,7 +55,9 @@ export async function describeScene(imageBase64: string): Promise<VisionResponse
     }
 
     const data = await response.json();
-    const description = data.choices?.[0]?.message?.content || "عذرًا، لم أتمكن من الحصول على وصف للصورة.";
+    const description = data.choices?.[0]?.message?.content || (config.defaultLanguage === "ar"
+      ? "عذرًا، لم أتمكن من الحصول على وصف للصورة."
+      : "Sorry, I couldn't get a description of the image.");
     logger.info(`Received scene description: ${description}`);
 
     return {
@@ -59,13 +72,12 @@ export async function describeScene(imageBase64: string): Promise<VisionResponse
 
 /**
  * Sends a photo and a question to a vision LLM for visual question answering.
- * Uses OpenRouter (Qwen3-VL) to answer the user's question, responding in Arabic.
  */
 export async function answerVisualQuestion(
   imageBase64: string,
   question: string
 ): Promise<VisionResponse> {
-  logger.info(`Sending image + question to OpenRouter (Qwen3-VL): "${question}"`);
+  logger.info(`Sending image + question to OpenRouter: "${question}"`);
 
   try {
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -75,14 +87,14 @@ export async function answerVisualQuestion(
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        model: "qwen/qwen3-vl-235b-a22b-thinking",
+        model: "google/gemini-2.5-flash-lite",
         messages: [
           {
             role: "user",
             content: [
               {
                 type: "text",
-                text: `${question}\n\nAnswer the question above based on the image. Respond in Arabic.`
+                text: `${question}\n\nAnswer the question above based on the image. ${langInstruction()}`
               },
               {
                 type: "image_url",
@@ -101,7 +113,9 @@ export async function answerVisualQuestion(
     }
 
     const data = await response.json();
-    const description = data.choices?.[0]?.message?.content || "عذرًا، لم أتمكن من الإجابة على السؤال.";
+    const description = data.choices?.[0]?.message?.content || (config.defaultLanguage === "ar"
+      ? "عذرًا، لم أتمكن من الإجابة على السؤال."
+      : "Sorry, I couldn't answer the question.");
     logger.info(`Received VQA answer: ${description}`);
 
     return {
@@ -115,7 +129,7 @@ export async function answerVisualQuestion(
 }
 
 /**
- * Sends a photo to OpenRouter (Qwen3-VL) for currency/money recognition.
+ * Sends a photo to OpenRouter for currency/money recognition.
  */
 export async function recognizeCurrency(imageBase64: string): Promise<{
   denomination: string;
@@ -132,7 +146,7 @@ export async function recognizeCurrency(imageBase64: string): Promise<{
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        model: "qwen/qwen3-vl-235b-a22b-thinking",
+        model: "google/gemini-2.5-flash-lite",
         messages: [
           {
             role: "user",
@@ -174,7 +188,7 @@ export async function recognizeCurrency(imageBase64: string): Promise<{
 }
 
 /**
- * Sends a photo to OpenRouter (Qwen3-VL) for object detection/location.
+ * Sends a photo to OpenRouter for object detection/location.
  */
 export async function detectObject(
   imageBase64: string,
@@ -190,14 +204,14 @@ export async function detectObject(
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        model: "qwen/qwen3-vl-235b-a22b-thinking",
+        model: "google/gemini-2.5-flash-lite",
         messages: [
           {
             role: "user",
             content: [
               {
                 type: "text",
-                text: `Look for "${targetObject}" in this image. Respond ONLY with a raw JSON object (no markdown) containing 'found' (boolean) and 'location' (string, a brief description of where it is in Arabic, or empty string if not found).`
+                text: `Look for "${targetObject}" in this image. Respond ONLY with a raw JSON object (no markdown) containing 'found' (boolean) and 'location' (string, a brief description of where it is in ${langName()}, or empty string if not found).`
               },
               {
                 type: "image_url",
@@ -232,7 +246,7 @@ export async function detectObject(
 }
 
 /**
- * Analyzes the center region of an image to detect the dominant color using OpenRouter.
+ * Analyzes the center region of an image to detect the dominant color.
  */
 export async function detectColor(imageBase64: string): Promise<{
   colorName: string;
@@ -248,14 +262,14 @@ export async function detectColor(imageBase64: string): Promise<{
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        model: "qwen/qwen3-vl-235b-a22b-thinking",
+        model: "google/gemini-2.5-flash-lite",
         messages: [
           {
             role: "user",
             content: [
               {
                 type: "text",
-                text: "Identify the dominant color in the center of this image. Respond ONLY with a raw JSON object (no markdown) containing 'colorName' (the name of the color in Arabic) and 'hex' (the hex code of the color)."
+                text: `Identify the dominant color in the center of this image. Respond ONLY with a raw JSON object (no markdown) containing 'colorName' (the name of the color in ${langName()}) and 'hex' (the hex code of the color).`
               },
               {
                 type: "image_url",
@@ -279,7 +293,7 @@ export async function detectColor(imageBase64: string): Promise<{
     const parsed = JSON.parse(cleanedContent);
 
     return {
-      colorName: parsed.colorName || "غير معروف",
+      colorName: parsed.colorName || (config.defaultLanguage === "ar" ? "غير معروف" : "unknown"),
       hex: parsed.hex || "#000000",
     };
   } catch (error) {
