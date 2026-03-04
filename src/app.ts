@@ -8,6 +8,7 @@ import { FindObjectCommand } from "./commands/find-object";
 import { CurrencyRecognizeCommand } from "./commands/currency-recognize";
 import { VisualQACommand } from "./commands/visual-qa";
 import { ColorDetectCommand } from "./commands/color-detect";
+import { AIHandler } from "./services/ai-handler";
 import { speak, speakBilingual, messages, getLastResponse, clearLastResponse } from "./services/tts-service";
 import { config } from "./utils/config";
 import { Logger } from "./utils/logger";
@@ -25,6 +26,9 @@ export class SuhailApp extends AppServer {
 
   /** Face enrollment handler (needs special access for pending state) */
   private faceEnrollHandler: FaceEnrollCommand;
+
+  private ai = new AIHandler();
+  private faceStorageConfigured = false;
 
   /** Session IDs currently connected (tracked for the mini app UI) */
   private connectedSessions = new Set<string>();
@@ -58,6 +62,11 @@ export class SuhailApp extends AppServer {
 
     this.registerApiRoutes();
     logger.info("SuhailApp initialized with all command handlers");
+  }
+
+  /** Loads persisted face records before the server starts accepting sessions. */
+  async initialize(): Promise<void> {
+    await this.ai.loadPersistedFaces();
   }
 
   /**
@@ -102,6 +111,12 @@ export class SuhailApp extends AppServer {
     userId: string
   ): Promise<void> {
     logger.info(`New session started: ${sessionId} (user: ${userId})`);
+
+    if (!this.faceStorageConfigured) {
+      this.ai.configureFaceStorage(session.simpleStorage);
+      await this.ai.loadPersistedFaces();
+      this.faceStorageConfigured = true;
+    }
 
     this.connectedSessions.add(sessionId);
     this.logActivity(`جلسة جديدة (${userId})`);
@@ -150,17 +165,33 @@ export class SuhailApp extends AppServer {
     }
 
     try {
-      // Check if we're waiting for a name during face enrollment
+      // Check if we're waiting for a name during face enrollment (no wake word needed)
       if (this.faceEnrollHandler.hasPendingEnrollment(sessionId)) {
         logger.info(`[${sessionId}] Completing pending face enrollment with name: "${text}"`);
         await this.faceEnrollHandler.execute(session, { name: text, _sessionId: sessionId });
         return;
       }
 
-      // Route the transcription to the correct command (requires wake word)
+      // Require "hey assistant" wake word before processing any command
+      // Mentra STT may transcribe it in Arabic as "هي أسيستنت" or variations
+      const lower = text.toLowerCase();
+      const wakeWordPatterns = [
+        "hey assistant",
+        "هي أسيستنت",
+        "هي اسيستنت",
+        "هاي أسيستنت",
+        "هاي اسيستنت",
+      ];
+      const hasWakeWord = wakeWordPatterns.some((w) => lower.includes(w));
+      if (!hasWakeWord) {
+        logger.info(`[${sessionId}] Ignored (no wake word): "${text}"`);
+        return;
+      }
+
+      // Route the transcription to the correct command
       const route = routeCommand(text);
       if (!route) {
-        // No wake word detected — ignore this transcription
+        // No matching command — ignore this transcription
         return;
       }
       logger.info(`[${sessionId}] Routed to command: ${route.command}`);

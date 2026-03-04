@@ -17,15 +17,9 @@ export const config = {
   /** Google Cloud Vision API key for OCR */
   googleCloudVisionApiKey: process.env.GOOGLE_CLOUD_VISION_API_KEY || "",
 
-  /** Azure Face API key */
-  azureFaceApiKey: process.env.AZURE_FACE_API_KEY || "",
-
-  /** Azure Face API endpoint */
-  azureFaceEndpoint: process.env.AZURE_FACE_ENDPOINT || "",
-
   /** Default language for responses */
   defaultLanguage: (process.env.DEFAULT_LANGUAGE || "ar") as Language,
 
   /** Confidence threshold for recognition results */
-  confidenceThreshold: parseFloat(process.env.CONFIDENCE_THRESHOLD || "0.85"),
+  confidenceThreshold: parseFloat(process.env.CONFIDENCE_THRESHOLD || "0.5"),
 } as const;

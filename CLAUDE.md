@@ -71,6 +71,8 @@ Mentra Live Glasses <-> User's Phone (Mentra App) <-> MentraOS Cloud (WebSocket)
 ### Voice Commands — How They Work
 There is **no built-in wake word or command system** from Mentra. The SDK gives you **raw transcription text** via `session.events.onTranscription()`. Your app is responsible for parsing commands from that text. The Suhail app uses keyword matching in `command-router.ts` — this is the standard pattern. Users do NOT need to press a button to issue commands; they just speak and the mic is always listening.
 
+**Wake word:** The app requires the user to say **"hey assistant"** before any command. The transcription must contain this keyword for the command to be processed. This prevents accidental triggers from background conversation.
+
 ## MentraOS SDK Reference
 
 ### AppServer
