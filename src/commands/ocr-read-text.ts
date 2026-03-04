@@ -13,8 +13,9 @@ const ai = new AIHandler();
  * Captures a photo and extracts text using OCR.
  */
 export class OcrReadTextCommand implements CommandHandler {
-  async execute(session: AppSession): Promise<void> {
+  async execute(session: AppSession, params?: Record<string, string>): Promise<void> {
     logger.info("Executing OCR text reading...");
+    const sessionId = params?._sessionId;
 
     try {
       await speakBilingual(session, messages.processing);
@@ -32,14 +33,14 @@ export class OcrReadTextCommand implements CommandHandler {
         await speakBilingual(session, {
           ar: "ما قدرت ألاقي نص في الصورة.",
           en: "I couldn't find any text in the image.",
-        });
+        }, sessionId);
         return;
       }
 
-      await speak(session, result.text);
+      await speak(session, result.text, sessionId);
     } catch (error) {
       logger.error("OCR reading failed:", error);
-      await speakBilingual(session, messages.generalError);
+      await speakBilingual(session, messages.generalError, sessionId);
     }
   }
 }

@@ -3,6 +3,9 @@ import type { CommandType, RouteResult } from "../types";
 
 const logger = new Logger("CommandRouter");
 
+/** Wake words that must appear at the start of a transcription to activate a command */
+const WAKE_WORDS = ["hey assistant"];
+
 /** Route definition for keyword-based matching */
 interface Route {
   command: CommandType;
@@ -12,6 +15,31 @@ interface Route {
   requiredAll?: string[];
   /** Extract extra params from the transcription */
   extractParams?: (text: string) => Record<string, string>;
+}
+
+/**
+ * Checks if the transcription starts with a wake word.
+ * Returns the text after the wake word (trimmed), or null if no wake word found.
+ */
+function stripWakeWord(text: string): string | null {
+  const lower = text.toLowerCase().trim();
+  for (const wake of WAKE_WORDS) {
+    if (lower.startsWith(wake)) {
+      return lower.slice(wake.length).trim();
+    }
+  }
+  return null;
+}
+
+/** Checks if a keyword matches in text, using word boundaries for short English words */
+function keywordMatches(text: string, keyword: string): boolean {
+  // Multi-word phrases and Arabic keywords: use simple includes
+  if (keyword.includes(" ") || /[\u0600-\u06FF]/.test(keyword)) {
+    return text.includes(keyword);
+  }
+  // Short single English words: use word boundaries to avoid false positives
+  const regex = new RegExp(`\\b${keyword}\\b`, "i");
+  return regex.test(text);
 }
 
 const routes: Route[] = [
@@ -36,10 +64,15 @@ const routes: Route[] = [
     command: "find-object",
     keywords: ["find", "where is", "وين", "ابحث"],
     extractParams: (text: string) => {
-      // Try to extract the object name from phrases like "find my keys", "where is the remote"
-      const findMatch = text.match(/find\s+(?:my\s+|the\s+)?(.+)/i);
-      const whereMatch = text.match(/where\s+is\s+(?:my\s+|the\s+)?(.+)/i);
-      const objectName = (findMatch?.[1] || whereMatch?.[1] || "object").trim().replace(/[.,?!]+$/, "");
+      // Try English patterns
+      const findMatch = text.match(/\bfind\s+(?:my\s+|the\s+)?(.+)/i);
+      const whereMatch = text.match(/\bwhere\s+is\s+(?:my\s+|the\s+)?(.+)/i);
+      // Try Arabic patterns
+      const weinMatch = text.match(/وين\s+(.+)/);
+      const abhathMatch = text.match(/ابحث\s+(?:عن\s+)?(.+)/);
+      const objectName = (
+        findMatch?.[1] || whereMatch?.[1] || weinMatch?.[1] || abhathMatch?.[1] || "object"
+      ).trim().replace(/[.,?!؟]+$/, "");
       return { objectName };
     },
   },
@@ -55,16 +88,30 @@ const routes: Route[] = [
 
 /**
  * Parses a transcription string and determines which command to execute.
- * Falls back to Visual QA if no specific command matches.
+ * Requires a wake word ("suhail" / "سهيل") at the start.
+ * Returns null if no wake word is found (transcription is ignored).
+ * Falls back to Visual QA if wake word is present but no specific command matches.
  */
-export function routeCommand(transcription: string): RouteResult {
-  const text = transcription.toLowerCase().trim();
-  logger.info(`Routing transcription: "${text}"`);
+export function routeCommand(transcription: string): RouteResult | null {
+  const raw = transcription.toLowerCase().trim();
+  logger.info(`Routing transcription: "${raw}"`);
+
+  // Require wake word — ignore transcriptions without it
+  const text = stripWakeWord(raw);
+  if (text === null) {
+    logger.info("No wake word detected — ignoring transcription");
+    return null;
+  }
+
+  if (text.length === 0) {
+    logger.info("Wake word only, no command — ignoring");
+    return null;
+  }
 
   for (const route of routes) {
     // Check requiredAll first (AND logic)
     if (route.requiredAll) {
-      const allMatch = route.requiredAll.every((kw) => text.includes(kw));
+      const allMatch = route.requiredAll.every((kw) => keywordMatches(text, kw));
       if (allMatch) {
         const params = route.extractParams?.(text);
         logger.info(`Matched command: ${route.command} (requiredAll)`);
@@ -73,7 +120,7 @@ export function routeCommand(transcription: string): RouteResult {
     }
 
     // Check keywords (OR logic)
-    const matched = route.keywords.some((kw) => text.includes(kw));
+    const matched = route.keywords.some((kw) => keywordMatches(text, kw));
     if (matched) {
       const params = route.extractParams?.(text);
       logger.info(`Matched command: ${route.command}`);

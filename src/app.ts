@@ -8,7 +8,7 @@ import { FindObjectCommand } from "./commands/find-object";
 import { CurrencyRecognizeCommand } from "./commands/currency-recognize";
 import { VisualQACommand } from "./commands/visual-qa";
 import { ColorDetectCommand } from "./commands/color-detect";
-import { speak, speakBilingual, messages } from "./services/tts-service";
+import { speak, speakBilingual, messages, getLastResponse, clearLastResponse } from "./services/tts-service";
 import { config } from "./utils/config";
 import { Logger } from "./utils/logger";
 import type { CommandHandler, CommandType } from "./types";
@@ -25,9 +25,6 @@ export class SuhailApp extends AppServer {
 
   /** Face enrollment handler (needs special access for pending state) */
   private faceEnrollHandler: FaceEnrollCommand;
-
-  /** Last spoken response per session, for "repeat" functionality */
-  private lastResponses = new Map<string, string>();
 
   /** Session IDs currently connected (tracked for the mini app UI) */
   private connectedSessions = new Set<string>();
@@ -133,7 +130,7 @@ export class SuhailApp extends AppServer {
    */
   override async onStop(sessionId: string, userId: string, reason: string): Promise<void> {
     this.connectedSessions.delete(sessionId);
-    this.lastResponses.delete(sessionId);
+    clearLastResponse(sessionId);
     this.logActivity(`انتهت الجلسة (${reason})`);
     logger.info(`Session stopped: ${sessionId} (user: ${userId}, reason: ${reason})`);
   }
@@ -146,6 +143,12 @@ export class SuhailApp extends AppServer {
     sessionId: string,
     text: string
   ): Promise<void> {
+    // Ignore empty or whitespace-only transcriptions
+    if (!text || text.trim().length === 0) {
+      logger.warn(`[${sessionId}] Empty transcription, ignoring`);
+      return;
+    }
+
     try {
       // Check if we're waiting for a name during face enrollment
       if (this.faceEnrollHandler.hasPendingEnrollment(sessionId)) {
@@ -154,8 +157,12 @@ export class SuhailApp extends AppServer {
         return;
       }
 
-      // Route the transcription to the correct command
+      // Route the transcription to the correct command (requires wake word)
       const route = routeCommand(text);
+      if (!route) {
+        // No wake word detected — ignore this transcription
+        return;
+      }
       logger.info(`[${sessionId}] Routed to command: ${route.command}`);
       this.logActivity(`أمر صوتي: ${route.command}`);
 
@@ -169,7 +176,7 @@ export class SuhailApp extends AppServer {
       await handler.execute(session, { ...route.params, _sessionId: sessionId });
     } catch (error) {
       logger.error(`[${sessionId}] Error handling transcription:`, error);
-      await speakBilingual(session, messages.generalError);
+      await speakBilingual(session, messages.generalError, sessionId);
     }
   }
 
@@ -194,13 +201,13 @@ export class SuhailApp extends AppServer {
 
       if ((buttonId === "right" || buttonId === "camera") && pressType === "short") {
         this.logActivity("زر يمين قصير ← وصف المشهد");
-        await this.handlers["scene-summarize"].execute(session);
+        await this.handlers["scene-summarize"].execute(session, { _sessionId: sessionId });
       } else if ((buttonId === "right" || buttonId === "camera") && pressType === "long") {
         this.logActivity("زر يمين طويل ← التعرف على الوجه");
-        await this.handlers["face-recognize"].execute(session);
+        await this.handlers["face-recognize"].execute(session, { _sessionId: sessionId });
       } else if (buttonId === "left" && pressType === "short") {
         this.logActivity("زر يسار قصير ← قراءة النص");
-        await this.handlers["ocr-read-text"].execute(session);
+        await this.handlers["ocr-read-text"].execute(session, { _sessionId: sessionId });
       } else if (buttonId === "left" && pressType === "long") {
         this.logActivity("زر يسار طويل ← إعادة آخر رد");
         await this.repeatLastResponse(session, sessionId);
@@ -217,12 +224,12 @@ export class SuhailApp extends AppServer {
    * Repeats the last spoken response for a session.
    */
   private async repeatLastResponse(session: AppSession, sessionId: string): Promise<void> {
-    const lastResponse = this.lastResponses.get(sessionId);
+    const lastResponse = getLastResponse(sessionId);
     if (lastResponse) {
       logger.info(`[${sessionId}] Repeating last response`);
-      await speak(session, lastResponse);
+      await speak(session, lastResponse, sessionId);
     } else {
-      await speakBilingual(session, messages.repeatNoHistory);
+      await speakBilingual(session, messages.repeatNoHistory, sessionId);
     }
   }
 }
