@@ -20,6 +20,12 @@ export const config = {
   /** Google Cloud Vision API key for OCR */
   googleCloudVisionApiKey: process.env.GOOGLE_CLOUD_VISION_API_KEY || "",
 
+  /** Azure OCR API key */
+  azureOcrKey: process.env.AZURE_OCR_KEY || "",
+
+  /** Azure OCR endpoint */
+  azureOcrEndpoint: process.env.AZURE_OCR_ENDPOINT || "",
+
   /** Default language for responses */
   defaultLanguage: (process.env.DEFAULT_LANGUAGE || "ar") as Language,
 

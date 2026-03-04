@@ -35,12 +35,6 @@ export interface VisionResponse {
   confidence: number;
 }
 
-/** OCR API response */
-export interface OcrResponse {
-  text: string;
-  confidence: number;
-}
-
 /** Face recognition result */
 export interface FaceRecognitionResult {
   name: string | null;
