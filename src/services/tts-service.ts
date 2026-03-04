@@ -80,4 +80,12 @@ export const messages = {
     ar: "ما فيه رد سابق أعيده.",
     en: "There is no previous response to repeat.",
   },
+  listening: {
+    ar: "تفضل",
+    en: "Listening",
+  },
+  listeningTimeout: {
+    ar: "انتهت مهلة الاستماع.",
+    en: "Listening timed out.",
+  },
 } satisfies Record<string, BilingualMessage>;

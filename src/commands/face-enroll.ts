@@ -85,11 +85,6 @@ export class FaceEnrollCommand implements CommandHandler {
       }
 
       // Step 1: Capture photo
-      await speakBilingual(session, {
-        ar: "جاري التقاط صورة الوجه...",
-        en: "Capturing face photo...",
-      });
-
       const photo = await capturePhoto(session);
       if (!photo) {
         await speakBilingual(session, messages.cameraError);

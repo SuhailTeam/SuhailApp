@@ -19,11 +19,6 @@ export class FindObjectCommand implements CommandHandler {
     logger.info(`Executing find object: "${objectName}"...`);
 
     try {
-      await speakBilingual(session, {
-        ar: `جاري البحث عن ${objectName}...`,
-        en: `Looking for ${objectName}...`,
-      });
-
       const photo = await capturePhoto(session);
       if (!photo) {
         await speakBilingual(session, messages.cameraError);

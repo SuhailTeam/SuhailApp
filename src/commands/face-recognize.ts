@@ -19,8 +19,6 @@ export class FaceRecognizeCommand implements CommandHandler {
     const sessionId = params?._sessionId;
 
     try {
-      await speakBilingual(session, messages.processing);
-
       const photo = await capturePhoto(session);
       if (!photo) {
         await speakBilingual(session, messages.cameraError);

@@ -19,8 +19,6 @@ export class VisualQACommand implements CommandHandler {
     logger.info(`Executing Visual QA: "${question}"`);
 
     try {
-      await speakBilingual(session, messages.processing);
-
       const photo = await capturePhoto(session);
       if (!photo) {
         await speakBilingual(session, messages.cameraError);

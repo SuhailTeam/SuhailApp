@@ -43,7 +43,7 @@ Mentra Live is one of several glasses models supported by MentraOS. Here's what 
 | Camera | 1080p (photo + video streaming) | `session.camera` |
 | Microphone | Yes (with Voice Activity Detection) | `session.events.onTranscription()` |
 | Speaker | Yes | `session.audio.speak()` |
-| Buttons | 1 physical button (camera button) | Short press + long press |
+| Buttons | 2 physical buttons (left + right/camera) + swipe pad | Short press + long press each |
 | LEDs | RGB + White | `session.led` |
 | WiFi | Yes | |
 | Display | **No** | `session.layouts` has no effect |
@@ -69,9 +69,9 @@ Mentra Live Glasses <-> User's Phone (Mentra App) <-> MentraOS Cloud (WebSocket)
 7. `onStop(sessionId, userId, reason)` is called (session object is NOT available here)
 
 ### Voice Commands — How They Work
-There is **no built-in wake word or command system** from Mentra. The SDK gives you **raw transcription text** via `session.events.onTranscription()`. Your app is responsible for parsing commands from that text. The Suhail app uses keyword matching in `command-router.ts` — this is the standard pattern. Users do NOT need to press a button to issue commands; they just speak and the mic is always listening.
+There is **no built-in wake word or command system** from Mentra. The SDK gives you **raw transcription text** via `session.events.onTranscription()`. Your app is responsible for parsing commands from that text. The Suhail app uses keyword matching in `command-router.ts` — this is the standard pattern.
 
-**Wake word:** The app requires the user to say **"hey assistant"** before any command. The transcription must contain this keyword for the command to be processed. This prevents accidental triggers from background conversation.
+**Swipe-to-command:** The user swipes **forward** on the swipe pad to activate a ~10 second listening window. The next voice transcription is processed as a command without needing a wake word. Swiping **backward** repeats the last response. The left button also works as a fallback (short press = listen, long press = repeat). This prevents accidental triggers from background conversation and is more reliable than speech-based wake words.
 
 ## MentraOS SDK Reference
 
@@ -134,9 +134,9 @@ session.events.onTranscription((data: TranscriptionData) => {
   // data.timestamp  — Date
 });
 
-// Button press (Mentra Live has 1 button — the camera button)
+// Button press (Mentra Live has 2 buttons: "left" and "right"/"camera")
 session.events.onButtonPress((data: ButtonPress) => {
-  // data.buttonId  — string (verify actual values from your glasses)
+  // data.buttonId  — "left" or "right" (also "camera" as alias for "right")
   // data.pressType — "short" or "long"
 });
 
@@ -419,12 +419,18 @@ User speaks -> Mentra glasses mic -> MentraOS STT -> onTranscription(data)
 
 ### Request Flow (Button Press)
 
-Mentra Live has **1 physical button** (the camera button). The actual `buttonId` values should be verified against your hardware. The current code maps button presses to shortcuts for common commands:
+Mentra Live has **2 physical buttons** ("left" and "right"/"camera") plus a swipe pad. Gesture/button mappings:
+
+- **Forward swipe** → Activate listening mode (~10s window for next voice command)
+- **Backward swipe** → Repeat last response
+- **Left short press** → Activate listening mode (fallback)
+- **Left long press** → Repeat last response (fallback)
+- **Right/camera button** → Reserved (triggers native camera hardware)
 
 ```
-User presses button -> onButtonPress(event)
-  -> event.buttonId + event.pressType
-  -> Route to a command handler (configurable in app.ts)
+User swipes forward on swipe pad -> onTouchEvent(event)
+  -> gesture_name="forward_swipe" -> activate listening mode
+  -> next transcription is processed as a command (no wake word needed)
 ```
 
 ### Command Handler Pattern
@@ -457,7 +463,7 @@ The state machine lives in `FaceEnrollCommand.pendingEnrollments: Map<sessionId,
 
 ## Voice Command Routing (command-router.ts)
 
-The router uses **keyword matching** (case-insensitive). Routes are checked in order — first match wins. No button press is required — users just speak naturally and the mic is always listening.
+The router uses **keyword matching** (case-insensitive). Routes are checked in order — first match wins. The user must first activate listening mode by pressing the left button, then speak their command within the ~10 second window.
 
 | Priority | Command | Keywords (any match) | Notes |
 |----------|---------|---------------------|-------|
