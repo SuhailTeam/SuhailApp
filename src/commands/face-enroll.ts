@@ -25,7 +25,20 @@ export class FaceEnrollCommand implements CommandHandler {
       // If we have a pending enrollment and a name was provided, complete it
       const pendingPhoto = this.pendingEnrollments.get(sessionId);
       if (pendingPhoto && params?.name) {
-        const name = params.name;
+        const raw = params.name.trim();
+
+        // Ignore TTS echo — if the mic picks up the app's own speech, skip it
+        const echoPatterns = [
+          "photo captured", "please say", "person's name",
+          "تم التقاط", "من فضلك", "اسم الشخص",
+        ];
+        const lower = raw.toLowerCase();
+        if (echoPatterns.some((p) => lower.includes(p))) {
+          logger.info(`Ignoring TTS echo: "${raw}"`);
+          return;
+        }
+
+        const name = raw;
         logger.info(`Completing enrollment for name: ${name}`);
         const success = await ai.enrollFace(name, pendingPhoto);
         this.pendingEnrollments.delete(sessionId);

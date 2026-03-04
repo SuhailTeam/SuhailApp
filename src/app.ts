@@ -161,10 +161,26 @@ export class SuhailApp extends AppServer {
     text: string
   ): Promise<void> {
     try {
-      // Check if we're waiting for a name during face enrollment
+      // Check if we're waiting for a name during face enrollment (no wake word needed)
       if (this.faceEnrollHandler.hasPendingEnrollment(sessionId)) {
         logger.info(`[${sessionId}] Completing pending face enrollment with name: "${text}"`);
         await this.faceEnrollHandler.execute(session, { name: text, _sessionId: sessionId });
+        return;
+      }
+
+      // Require "hey assistant" wake word before processing any command
+      // Mentra STT may transcribe it in Arabic as "هي أسيستنت" or variations
+      const lower = text.toLowerCase();
+      const wakeWordPatterns = [
+        "hey assistant",
+        "هي أسيستنت",
+        "هي اسيستنت",
+        "هاي أسيستنت",
+        "هاي اسيستنت",
+      ];
+      const hasWakeWord = wakeWordPatterns.some((w) => lower.includes(w));
+      if (!hasWakeWord) {
+        logger.info(`[${sessionId}] Ignored (no wake word): "${text}"`);
         return;
       }
 
