@@ -318,7 +318,7 @@ export class SuhailApp extends AppServer {
    *
    * Button mapping:
    * - Short press (left)  → Activate listening mode
-   * - Long press (left)   → Repeat last response
+   * - Long press (left)   → Interrupt and return to listening mode
    * - Right/camera button → Reserved (triggers native camera hardware)
    */
   private async handleButtonPress(
@@ -334,13 +334,27 @@ export class SuhailApp extends AppServer {
         this.activateListening(session, sessionId);
         await speakBilingual(session, messages.listening, sessionId);
       } else if (buttonId === "left" && pressType === "long") {
-        this.logActivity("زر يسار طويل ← إعادة آخر رد");
-        await this.repeatLastResponse(session, sessionId);
+        await this.interruptAndReturnToListening(session, sessionId);
       }
     } catch (error) {
       logger.error(`[${sessionId}] Error handling button press:`, error);
       await speakBilingual(session, messages.generalError);
     }
+  }
+
+  /**
+   * Interrupts conversational state and returns the user to listening mode.
+   * This is best-effort for in-flight work; it guarantees local state reset.
+   */
+  private async interruptAndReturnToListening(session: AppSession, sessionId: string): Promise<void> {
+    this.logActivity("زر يسار طويل ← مقاطعة والعودة للاستماع");
+
+    this.deactivateListening(sessionId);
+    this.faceEnrollHandler.interruptEnrollment(sessionId);
+    this.speakingSessions.delete(sessionId);
+
+    this.activateListening(session, sessionId);
+    await speakBilingual(session, messages.interruptedListening, sessionId);
   }
 
   /**

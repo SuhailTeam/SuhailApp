@@ -88,4 +88,8 @@ export const messages = {
     ar: "انتهت مهلة الاستماع.",
     en: "Listening timed out.",
   },
+  interruptedListening: {
+    ar: "تمت المقاطعة. عدنا لوضع الاستماع.",
+    en: "Interrupted. Back to listening mode.",
+  },
 } satisfies Record<string, BilingualMessage>;
