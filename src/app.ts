@@ -12,7 +12,8 @@ import { AIHandler } from "./services/ai-handler";
 import { speak, speakBilingual, messages, getLastResponse, clearLastResponse } from "./services/tts-service";
 import { config } from "./utils/config";
 import { Logger } from "./utils/logger";
-import type { CommandHandler, CommandType } from "./types";
+import type { CommandHandler, CommandType, ListeningState } from "./types";
+import { isValidTranscription } from "./utils/transcription-filter";
 
 const logger = new Logger("SuhailApp");
 
@@ -33,14 +34,19 @@ export class SuhailApp extends AppServer {
   /** Session IDs currently connected (tracked for the mini app UI) */
   private connectedSessions = new Set<string>();
 
-  /** Sessions in listening mode (waiting for next voice command after button press) */
-  private listeningSessions = new Map<string, { timer: ReturnType<typeof setTimeout>; activatedAt: number }>();
+  /** Sessions in listening mode (waiting for next voice command after swipe/button press) */
+  private listeningSessions = new Map<string, {
+    state: ListeningState;
+    timer: ReturnType<typeof setTimeout>;
+    activatedAt: number;
+    abortController?: AbortController;
+  }>();
 
-  /** How long the listening window stays open after button press (ms) */
-  private static readonly LISTENING_TIMEOUT_MS = 10_000;
+  /** How long the listening window stays open after activation (ms) */
+  private static readonly LISTENING_TIMEOUT_MS = 7_000;
 
   /** Minimum confidence (0-1) to accept a transcription. Below this is treated as noise. */
-  private static readonly MIN_TRANSCRIPTION_CONFIDENCE = 0.4;
+  private static readonly MIN_TRANSCRIPTION_CONFIDENCE = config.minTranscriptionConfidence;
 
   /** Sessions currently speaking (TTS echo guard — ignore transcriptions while speaking) */
   private speakingSessions = new Set<string>();
@@ -155,9 +161,21 @@ export class SuhailApp extends AppServer {
         return;
       }
 
+      // Discard transcriptions where detected language doesn't match configured language
+      if (data.detectedLanguage && !data.detectedLanguage.startsWith(config.defaultLanguage)) {
+        logger.info(`[${sessionId}] Dropped language-mismatch transcription (detected=${data.detectedLanguage}, expected=${langCode}): "${data.text}"`);
+        return;
+      }
+
+      // Discard garbled or junk transcriptions
+      if (!isValidTranscription(data.text, config.defaultLanguage)) {
+        logger.info(`[${sessionId}] Dropped invalid transcription: "${data.text}"`);
+        return;
+      }
+
       logger.info(`[${sessionId}] Transcription (confidence=${confidence.toFixed(2)}): "${data.text}"`);
       await this.handleTranscription(session, sessionId, data.text);
-    });
+    }, { disableLanguageIdentification: true });
 
     // Listen for button presses (log all for debugging)
     session.events.onButtonPress(async (event) => {
@@ -217,26 +235,33 @@ export class SuhailApp extends AppServer {
       }
 
       // Only process commands when listening mode is active
-      const listeningState = this.listeningSessions.get(sessionId);
-      if (!listeningState) {
+      const listeningEntry = this.listeningSessions.get(sessionId);
+      if (!listeningEntry || listeningEntry.state !== "active") {
         logger.info(`[${sessionId}] Ignored (not listening): "${text}"`);
         return;
       }
 
       // Ignore transcriptions that arrive too soon after activation — these are
       // stale audio from before the swipe that the STT pipeline hadn't flushed yet
-      const elapsed = Date.now() - listeningState.activatedAt;
+      const elapsed = Date.now() - listeningEntry.activatedAt;
       if (elapsed < SuhailApp.LISTENING_GRACE_MS) {
         logger.info(`[${sessionId}] Ignored (stale transcription, ${elapsed}ms after activation): "${text}"`);
         return;
       }
 
-      // Deactivate listening mode — we got a command
-      this.deactivateListening(sessionId);
+      // Transition to processing state
+      clearTimeout(listeningEntry.timer);
+      const abortController = new AbortController();
+      listeningEntry.state = "processing";
+      listeningEntry.abortController = abortController;
+
+      // Acknowledge receipt
+      await speakBilingual(session, messages.received, sessionId);
 
       // Route the transcription to the correct command
       const route = routeCommand(text);
       if (!route) {
+        this.deactivateListening(sessionId);
         return;
       }
       logger.info(`[${sessionId}] Routed to command: ${route.command}`);
@@ -245,6 +270,7 @@ export class SuhailApp extends AppServer {
       const handler = this.handlers[route.command];
       if (!handler) {
         logger.error(`[${sessionId}] No handler found for command: ${route.command}`);
+        this.deactivateListening(sessionId);
         await speakBilingual(session, messages.generalError);
         return;
       }
@@ -254,6 +280,7 @@ export class SuhailApp extends AppServer {
       try {
         await handler.execute(session, { ...route.params, _sessionId: sessionId });
       } finally {
+        this.deactivateListening(sessionId);
         setTimeout(() => {
           this.speakingSessions.delete(sessionId);
           logger.info(`[${sessionId}] TTS echo guard lifted`);
@@ -266,30 +293,63 @@ export class SuhailApp extends AppServer {
   }
 
   /**
-   * Activates listening mode for a session. The next voice transcription
-   * within the timeout window will be processed as a command.
+   * Activates listening mode for a session, or cancels if already active/processing.
+   * The next voice transcription within the timeout window will be processed as a command.
    */
-  private activateListening(session: AppSession, sessionId: string): void {
-    // Clear any existing listening timer
+  private async activateListening(session: AppSession, sessionId: string): Promise<void> {
+    const existing = this.listeningSessions.get(sessionId);
+
+    // If already active or processing, treat as cancellation
+    if (existing && (existing.state === "active" || existing.state === "processing")) {
+      await this.cancelListening(session, sessionId);
+      return;
+    }
+
+    // Clear any leftover state
     this.deactivateListening(sessionId);
 
-    const timer = setTimeout(() => {
-      if (this.listeningSessions.has(sessionId)) {
+    const timer = setTimeout(async () => {
+      const current = this.listeningSessions.get(sessionId);
+      if (current && current.state === "active") {
         this.listeningSessions.delete(sessionId);
         logger.info(`[${sessionId}] Listening mode timed out`);
+        await speakBilingual(session, messages.didntCatch, sessionId);
       }
     }, SuhailApp.LISTENING_TIMEOUT_MS);
 
-    this.listeningSessions.set(sessionId, { timer, activatedAt: Date.now() });
+    this.listeningSessions.set(sessionId, { state: "active", timer, activatedAt: Date.now() });
     logger.info(`[${sessionId}] Listening mode activated (${SuhailApp.LISTENING_TIMEOUT_MS / 1000}s window)`);
+    await speakBilingual(session, messages.listening, sessionId);
+
+    // Reset activatedAt AFTER TTS finishes so the grace period starts
+    // from when the mic is free, not from when we initiated the cue
+    const entry = this.listeningSessions.get(sessionId);
+    if (entry && entry.state === "active") {
+      entry.activatedAt = Date.now();
+    }
   }
 
   /**
-   * Deactivates listening mode for a session.
+   * Cancels an active or in-progress listening session.
+   */
+  private async cancelListening(session: AppSession, sessionId: string): Promise<void> {
+    const state = this.listeningSessions.get(sessionId);
+    if (state) {
+      state.abortController?.abort();
+      clearTimeout(state.timer);
+      this.listeningSessions.delete(sessionId);
+      logger.info(`[${sessionId}] Listening cancelled (was ${state.state})`);
+      await speakBilingual(session, messages.cancelled, sessionId);
+    }
+  }
+
+  /**
+   * Deactivates listening mode for a session (cleanup, no audio feedback).
    */
   private deactivateListening(sessionId: string): void {
     const state = this.listeningSessions.get(sessionId);
     if (state) {
+      state.abortController?.abort();
       clearTimeout(state.timer);
       this.listeningSessions.delete(sessionId);
     }
@@ -299,7 +359,7 @@ export class SuhailApp extends AppServer {
    * Handles touch/swipe gestures on the Mentra Live swipe pad.
    *
    * Gesture mapping:
-   * - Forward swipe  → Activate listening mode (swipe-to-command)
+   * - Forward swipe  → Activate listening mode (or cancel if already active/processing)
    * - Backward swipe → Repeat last response
    */
   private async handleTouchEvent(
@@ -309,29 +369,11 @@ export class SuhailApp extends AppServer {
   ): Promise<void> {
     try {
       if (gestureName === "forward_swipe") {
-        // TESTING: forward swipe triggers OCR directly
-        this.logActivity("سحب للأمام ← قراءة نص");
-        this.speakingSessions.add(sessionId);
-        try {
-          await this.handlers["ocr-read-text"].execute(session, { _sessionId: sessionId });
-        } finally {
-          setTimeout(() => {
-            this.speakingSessions.delete(sessionId);
-            logger.info(`[${sessionId}] TTS echo guard lifted`);
-          }, SuhailApp.TTS_ECHO_BUFFER_MS);
-        }
+        this.logActivity("سحب للأمام ← وضع الاستماع");
+        await this.activateListening(session, sessionId);
       } else if (gestureName === "backward_swipe") {
-        // TESTING: backward swipe triggers VQA (scene describe)
-        this.logActivity("سحب للخلف ← وصف المشهد");
-        this.speakingSessions.add(sessionId);
-        try {
-          await this.handlers["scene-summarize"].execute(session, { _sessionId: sessionId });
-        } finally {
-          setTimeout(() => {
-            this.speakingSessions.delete(sessionId);
-            logger.info(`[${sessionId}] TTS echo guard lifted`);
-          }, SuhailApp.TTS_ECHO_BUFFER_MS);
-        }
+        this.logActivity("سحب للخلف ← إعادة آخر رد");
+        await this.repeatLastResponse(session, sessionId);
       } else {
         logger.info(`[${sessionId}] Unhandled gesture: "${gestureName}"`);
       }
@@ -360,8 +402,7 @@ export class SuhailApp extends AppServer {
 
       if (buttonId === "left" && pressType === "short") {
         this.logActivity("زر يسار قصير ← وضع الاستماع");
-        this.activateListening(session, sessionId);
-        await speakBilingual(session, messages.listening, sessionId);
+        await this.activateListening(session, sessionId);
       } else if (buttonId === "left" && pressType === "long") {
         this.logActivity("زر يسار طويل ← إعادة آخر رد");
         await this.repeatLastResponse(session, sessionId);

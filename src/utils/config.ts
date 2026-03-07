@@ -31,4 +31,7 @@ export const config = {
 
   /** Confidence threshold for recognition results */
   confidenceThreshold: parseFloat(process.env.CONFIDENCE_THRESHOLD || "0.5"),
+
+  /** Minimum transcription confidence to accept (0-1). Below this is treated as noise. */
+  minTranscriptionConfidence: parseFloat(process.env.MIN_CONFIDENCE || "0.55"),
 } as const;

@@ -14,8 +14,9 @@ The project runs in two environments:
 
 ### Local Development
 - Run the server locally with `bun run dev` (auto-restart) or `bun run start`
-- Expose the local server to the internet with `ngrok http 3000`
-- Copy the ngrok HTTPS URL into the Mentra Developer Console as the webhook URL
+- Expose the local server to the internet with `ngrok http 3000 --url=unplummeted-teddy-extractable.ngrok-free.dev`
+- Static ngrok URL: `https://unplummeted-teddy-extractable.ngrok-free.dev`
+- This URL is set in the Mentra Developer Console as the webhook URL
 - Use `.env` file for environment variables
 - Good for rapid iteration and debugging
 

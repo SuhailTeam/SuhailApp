@@ -78,3 +78,6 @@ export interface BilingualMessage {
   ar: string;
   en: string;
 }
+
+/** Listening session lifecycle states */
+export type ListeningState = "idle" | "active" | "processing";

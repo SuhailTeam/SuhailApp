@@ -84,6 +84,18 @@ export const messages = {
     ar: "تفضل",
     en: "Listening",
   },
+  received: {
+    ar: "حسناً",
+    en: "Got it",
+  },
+  cancelled: {
+    ar: "تم الإلغاء",
+    en: "Cancelled",
+  },
+  didntCatch: {
+    ar: "لم أسمع، حاول مرة أخرى",
+    en: "I didn't catch that, try again",
+  },
   listeningTimeout: {
     ar: "انتهت مهلة الاستماع.",
     en: "Listening timed out.",

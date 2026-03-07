@@ -1,13 +1,30 @@
 import * as fs from "node:fs/promises";
 import path from "node:path";
-import "@tensorflow/tfjs-node";
-import * as faceapi from "@vladmandic/face-api";
-import { Canvas, Image, ImageData, loadImage } from "canvas";
 import { config } from "../utils/config";
 import { Logger } from "../utils/logger";
 import type { FaceRecognitionResult } from "../types";
 
 const logger = new Logger("FaceService");
+
+// Native deps are optional — face features degrade gracefully when unavailable
+let faceapi: typeof import("@vladmandic/face-api") | null = null;
+let Canvas: any = null;
+let Image: any = null;
+let ImageData: any = null;
+let loadImage: any = null;
+
+try {
+  require("@tensorflow/tfjs-node");
+  faceapi = require("@vladmandic/face-api");
+  const canvas = require("canvas");
+  Canvas = canvas.Canvas;
+  Image = canvas.Image;
+  ImageData = canvas.ImageData;
+  loadImage = canvas.loadImage;
+  logger.info("Native face recognition dependencies loaded");
+} catch {
+  logger.warn("Face recognition unavailable — @tensorflow/tfjs-node or canvas not installed");
+}
 
 interface FaceRecord {
   name: string;
@@ -34,9 +51,15 @@ let storage:
 let envPatched = false;
 let modelLoadPromise: Promise<void> | null = null;
 
+function ensureDepsAvailable(): void {
+  if (!faceapi) {
+    throw new Error("Face recognition is not available — native dependencies not installed");
+  }
+}
+
 function patchFaceApiEnv(): void {
   if (envPatched) return;
-  faceapi.env.monkeyPatch({
+  faceapi!.env.monkeyPatch({
     Canvas: Canvas as unknown as typeof HTMLCanvasElement,
     Image: Image as unknown as typeof HTMLImageElement,
     ImageData: ImageData as unknown as typeof globalThis.ImageData,
@@ -45,14 +68,15 @@ function patchFaceApiEnv(): void {
 }
 
 async function ensureModelsLoaded(): Promise<void> {
+  ensureDepsAvailable();
   patchFaceApiEnv();
   if (!modelLoadPromise) {
     modelLoadPromise = (async () => {
       logger.info(`Loading face models from ${modelsPath}`);
       await Promise.all([
-        faceapi.nets.ssdMobilenetv1.loadFromDisk(modelsPath),
-        faceapi.nets.faceLandmark68Net.loadFromDisk(modelsPath),
-        faceapi.nets.faceRecognitionNet.loadFromDisk(modelsPath),
+        faceapi!.nets.ssdMobilenetv1.loadFromDisk(modelsPath),
+        faceapi!.nets.faceLandmark68Net.loadFromDisk(modelsPath),
+        faceapi!.nets.faceRecognitionNet.loadFromDisk(modelsPath),
       ]);
       logger.info("Face models loaded");
     })();
@@ -68,7 +92,7 @@ async function decodeImage(imageBase64: string): Promise<Image> {
 async function detectDescriptor(imageBase64: string): Promise<Float32Array | null> {
   await ensureModelsLoaded();
   const image = await decodeImage(imageBase64);
-  const detection = await faceapi
+  const detection = await faceapi!
     .detectSingleFace(image as unknown as HTMLImageElement)
     .withFaceLandmarks()
     .withFaceDescriptor();
@@ -134,9 +158,9 @@ function createMatcher(): faceapi.FaceMatcher | null {
   }
 
   const labeled = Array.from(byName.entries()).map(
-    ([name, descriptors]) => new faceapi.LabeledFaceDescriptors(name, descriptors)
+    ([name, descriptors]) => new faceapi!.LabeledFaceDescriptors(name, descriptors)
   );
-  return new faceapi.FaceMatcher(labeled, config.confidenceThreshold);
+  return new faceapi!.FaceMatcher(labeled, config.confidenceThreshold);
 }
 
 /**
