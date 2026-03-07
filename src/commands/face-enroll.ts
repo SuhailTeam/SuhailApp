@@ -26,6 +26,9 @@ export class FaceEnrollCommand implements CommandHandler {
   /** Lock to prevent concurrent enrollment completions per session */
   private processingEnrollments = new Set<string>();
 
+  /** Sessions where enrollment was explicitly interrupted */
+  private interruptedEnrollments = new Set<string>();
+
   async execute(session: AppSession, params?: Record<string, string>): Promise<void> {
     logger.info("Executing face enrollment...");
 
@@ -67,6 +70,13 @@ export class FaceEnrollCommand implements CommandHandler {
           const success = await ai.enrollFace(name, pendingPhoto);
           this.clearPending(sessionId);
 
+          // If interrupted while processing, skip completion speech.
+          if (this.interruptedEnrollments.has(sessionId)) {
+            logger.info(`[${sessionId}] Enrollment completion suppressed due to interrupt`);
+            this.interruptedEnrollments.delete(sessionId);
+            return;
+          }
+
           if (success) {
             await speakBilingual(session, {
               ar: `تم تسجيل ${name} بنجاح.`,
@@ -83,6 +93,9 @@ export class FaceEnrollCommand implements CommandHandler {
         }
         return;
       }
+
+      // New enrollment request should clear stale interrupt markers.
+      this.interruptedEnrollments.delete(sessionId);
 
       // Step 1: Capture photo
       const photo = await capturePhoto(session);
@@ -123,6 +136,18 @@ export class FaceEnrollCommand implements CommandHandler {
   /** Check if a session has a pending enrollment (and is not already being processed) */
   hasPendingEnrollment(sessionId: string): boolean {
     return this.pendingEnrollments.has(sessionId) && !this.processingEnrollments.has(sessionId);
+  }
+
+  /** Interrupt pending enrollment flow for a session. */
+  interruptEnrollment(sessionId: string): boolean {
+    const hadState = this.pendingEnrollments.has(sessionId) || this.processingEnrollments.has(sessionId);
+    if (!hadState) {
+      return false;
+    }
+
+    this.interruptedEnrollments.add(sessionId);
+    this.clearPending(sessionId);
+    return true;
   }
 
   /** Clear all pending state for a session */

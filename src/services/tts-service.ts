@@ -104,4 +104,8 @@ export const messages = {
     ar: "لم أفهم طلبك. يمكنني وصف المحيط، قراءة النصوص، التعرف على الوجوه، البحث عن أشياء، معرفة العملات، أو تحديد الألوان.",
     en: "I didn't understand that. I can describe your surroundings, read text, recognize faces, find objects, identify currency, or detect colors.",
   },
+  interruptedListening: {
+    ar: "تمت المقاطعة. عدنا لوضع الاستماع.",
+    en: "Interrupted. Back to listening mode.",
+  },
 } satisfies Record<string, BilingualMessage>;

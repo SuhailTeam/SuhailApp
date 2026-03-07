@@ -399,7 +399,7 @@ export class SuhailApp extends AppServer {
    * Left button is used as fallback if swipe pad doesn't work.
    *
    * Button mapping:
-   * - Short press (left)  → Activate listening mode
+   * - Short press (left)  → Interrupt and return to listening mode
    * - Long press (left)   → Repeat last response
    * - Right/camera button → Reserved (triggers native camera hardware)
    */
@@ -412,8 +412,7 @@ export class SuhailApp extends AppServer {
       const { buttonId, pressType } = event;
 
       if (buttonId === "left" && pressType === "short") {
-        this.logActivity("زر يسار قصير ← وضع الاستماع");
-        await this.activateListening(session, sessionId);
+        await this.interruptAndReturnToListening(session, sessionId);
       } else if (buttonId === "left" && pressType === "long") {
         this.logActivity("زر يسار طويل ← إعادة آخر رد");
         await this.repeatLastResponse(session, sessionId);
@@ -422,6 +421,21 @@ export class SuhailApp extends AppServer {
       logger.error(`[${sessionId}] Error handling button press:`, error);
       await speakBilingual(session, messages.generalError);
     }
+  }
+
+  /**
+   * Interrupts conversational state and returns the user to listening mode.
+   * This is best-effort for in-flight work; it guarantees local state reset.
+   */
+  private async interruptAndReturnToListening(session: AppSession, sessionId: string): Promise<void> {
+    this.logActivity("زر يسار قصير ← مقاطعة والعودة للاستماع");
+
+    this.deactivateListening(sessionId);
+    this.faceEnrollHandler.interruptEnrollment(sessionId);
+    this.speakingSessions.delete(sessionId);
+
+    this.activateListening(session, sessionId);
+    await speakBilingual(session, messages.interruptedListening, sessionId);
   }
 
   /**
