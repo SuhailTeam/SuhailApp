@@ -115,7 +115,7 @@ suhail/
 │   │   ├── ai-handler.ts         # Unified AI service facade
 │   │   ├── vision-service.ts     # Vision LLM calls (GPT-4o)
 │   │   ├── ocr-service.ts        # OCR calls (Google Cloud Vision)
-│   │   ├── face-service.ts       # Face recognition (Azure Face)
+│   │   ├── face-service.ts       # Face recognition (AWS Rekognition)
 │   │   └── tts-service.ts        # Text-to-speech helper
 │   ├── utils/
 │   │   ├── config.ts             # Environment config
