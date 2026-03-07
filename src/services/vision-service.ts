@@ -29,7 +29,7 @@ export async function describeScene(imageBase64: string): Promise<VisionResponse
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash-lite",
+        model: "qwen/qwen3-vl-30b-a3b-thinking",
         messages: [
           {
             role: "user",
@@ -87,7 +87,7 @@ export async function answerVisualQuestion(
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash-lite",
+        model: "qwen/qwen3-vl-30b-a3b-thinking",
         messages: [
           {
             role: "user",
@@ -241,6 +241,57 @@ export async function detectObject(
     };
   } catch (error) {
     logger.error("Failed to detect object via OpenRouter API", error);
+    throw error;
+  }
+}
+
+/**
+ * Extracts all visible text from an image using the vision LLM.
+ * Used as an alternative to Azure OCR for better contextual reading.
+ */
+export async function extractText(imageBase64: string): Promise<string> {
+  logger.info("Sending image to OpenRouter for text extraction (vision OCR)...");
+
+  try {
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${config.openRouterApiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: "qwen/qwen3-vl-30b-a3b-thinking",
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: `Read and extract ALL visible text from this image. Return ONLY the text you can see, exactly as written, preserving the reading order. Do not describe the image or add any commentary. If no text is found, respond with an empty string. ${langInstruction()}`
+              },
+              {
+                type: "image_url",
+                image_url: {
+                  url: `data:image/jpeg;base64,${imageBase64}`
+                }
+              }
+            ]
+          }
+        ]
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`OpenRouter API failed with status ${response.status}`);
+    }
+
+    const data = await response.json();
+    const extractedText = data.choices?.[0]?.message?.content || "";
+    logger.info(`Vision OCR result: ${extractedText.substring(0, 100)}...`);
+
+    return extractedText;
+  } catch (error) {
+    logger.error("Failed to extract text via OpenRouter API", error);
     throw error;
   }
 }

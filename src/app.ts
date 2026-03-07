@@ -34,7 +34,7 @@ export class SuhailApp extends AppServer {
   private connectedSessions = new Set<string>();
 
   /** Sessions in listening mode (waiting for next voice command after button press) */
-  private listeningSessions = new Map<string, ReturnType<typeof setTimeout>>();
+  private listeningSessions = new Map<string, { timer: ReturnType<typeof setTimeout>; activatedAt: number }>();
 
   /** How long the listening window stays open after button press (ms) */
   private static readonly LISTENING_TIMEOUT_MS = 10_000;
@@ -47,6 +47,9 @@ export class SuhailApp extends AppServer {
 
   /** Extra buffer after TTS finishes to let the mic settle (ms) */
   private static readonly TTS_ECHO_BUFFER_MS = 1_500;
+
+  /** Grace period after activating listening to let the STT pipeline flush old audio (ms) */
+  private static readonly LISTENING_GRACE_MS = 2_000;
 
   /** Rolling log of the last 20 activity events (served to the mini app UI) */
   private activityLog: Array<{ time: string; event: string }> = [];
@@ -214,8 +217,17 @@ export class SuhailApp extends AppServer {
       }
 
       // Only process commands when listening mode is active
-      if (!this.listeningSessions.has(sessionId)) {
+      const listeningState = this.listeningSessions.get(sessionId);
+      if (!listeningState) {
         logger.info(`[${sessionId}] Ignored (not listening): "${text}"`);
+        return;
+      }
+
+      // Ignore transcriptions that arrive too soon after activation — these are
+      // stale audio from before the swipe that the STT pipeline hadn't flushed yet
+      const elapsed = Date.now() - listeningState.activatedAt;
+      if (elapsed < SuhailApp.LISTENING_GRACE_MS) {
+        logger.info(`[${sessionId}] Ignored (stale transcription, ${elapsed}ms after activation): "${text}"`);
         return;
       }
 
@@ -268,7 +280,7 @@ export class SuhailApp extends AppServer {
       }
     }, SuhailApp.LISTENING_TIMEOUT_MS);
 
-    this.listeningSessions.set(sessionId, timer);
+    this.listeningSessions.set(sessionId, { timer, activatedAt: Date.now() });
     logger.info(`[${sessionId}] Listening mode activated (${SuhailApp.LISTENING_TIMEOUT_MS / 1000}s window)`);
   }
 
@@ -276,9 +288,9 @@ export class SuhailApp extends AppServer {
    * Deactivates listening mode for a session.
    */
   private deactivateListening(sessionId: string): void {
-    const timer = this.listeningSessions.get(sessionId);
-    if (timer) {
-      clearTimeout(timer);
+    const state = this.listeningSessions.get(sessionId);
+    if (state) {
+      clearTimeout(state.timer);
       this.listeningSessions.delete(sessionId);
     }
   }
@@ -297,12 +309,29 @@ export class SuhailApp extends AppServer {
   ): Promise<void> {
     try {
       if (gestureName === "forward_swipe") {
-        this.logActivity("سحب للأمام ← وضع الاستماع");
-        this.activateListening(session, sessionId);
-        await speakBilingual(session, messages.listening, sessionId);
+        // TESTING: forward swipe triggers OCR directly
+        this.logActivity("سحب للأمام ← قراءة نص");
+        this.speakingSessions.add(sessionId);
+        try {
+          await this.handlers["ocr-read-text"].execute(session, { _sessionId: sessionId });
+        } finally {
+          setTimeout(() => {
+            this.speakingSessions.delete(sessionId);
+            logger.info(`[${sessionId}] TTS echo guard lifted`);
+          }, SuhailApp.TTS_ECHO_BUFFER_MS);
+        }
       } else if (gestureName === "backward_swipe") {
-        this.logActivity("سحب للخلف ← إعادة آخر رد");
-        await this.repeatLastResponse(session, sessionId);
+        // TESTING: backward swipe triggers VQA (scene describe)
+        this.logActivity("سحب للخلف ← وصف المشهد");
+        this.speakingSessions.add(sessionId);
+        try {
+          await this.handlers["scene-summarize"].execute(session, { _sessionId: sessionId });
+        } finally {
+          setTimeout(() => {
+            this.speakingSessions.delete(sessionId);
+            logger.info(`[${sessionId}] TTS echo guard lifted`);
+          }, SuhailApp.TTS_ECHO_BUFFER_MS);
+        }
       } else {
         logger.info(`[${sessionId}] Unhandled gesture: "${gestureName}"`);
       }
