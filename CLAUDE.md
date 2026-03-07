@@ -584,6 +584,7 @@ Each of these is marked with `// TODO` comments in the service files:
 8. **Use the Logger** — `new Logger("TagName")` for consistent `[TagName]` prefixed logging
 9. **Use capturePhoto()** from `utils/image-utils.ts` — it handles the SDK's `requestPhoto()`, Buffer->base64 conversion, and error handling
 10. **Keep it simple** — this is a graduation project. No over-engineering.
+11. **Keep `.env.example` up to date** — whenever you add, remove, or rename an environment variable in `config.ts` or anywhere in the codebase, update `.env.example` to reflect the change. This file is how teammates know which env vars they need.
 
 ## Adding a New Command
 
