@@ -22,10 +22,23 @@ export function isValidTranscription(text: string, lang: Language): boolean {
   if (REPEATED_WORD.test(trimmed)) return false;
 
   // Script mismatch: reject if zero characters of the expected script (and text is non-trivial)
+  // Note: when lang="en", Arabic-script text is allowed through — it may be a
+  // phonetic transliteration of English that the normalizer will handle downstream.
   if (trimmed.length > 3) {
     if (lang === "ar" && !ARABIC_SCRIPT.test(trimmed)) return false;
-    if (lang === "en" && ARABIC_SCRIPT.test(trimmed) && !(/[a-zA-Z]/).test(trimmed)) return false;
   }
 
   return true;
+}
+
+/**
+ * Returns true if the text appears to be in a mismatched script for the
+ * configured language, indicating it may need LLM normalization.
+ * Specifically: Arabic-script-only text when lang="en".
+ */
+export function needsScriptNormalization(text: string, lang: Language): boolean {
+  if (lang !== "en") return false;
+  const trimmed = text.trim();
+  if (trimmed.length <= 3) return false;
+  return ARABIC_SCRIPT.test(trimmed) && !/[a-zA-Z]/.test(trimmed);
 }

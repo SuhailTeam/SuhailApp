@@ -14,6 +14,7 @@ import { config } from "./utils/config";
 import { Logger } from "./utils/logger";
 import type { CommandHandler, CommandType, ListeningState } from "./types";
 import { isValidTranscription } from "./utils/transcription-filter";
+import { normalizeTranscription } from "./utils/transcription-normalizer";
 
 const logger = new Logger("SuhailApp");
 
@@ -43,7 +44,7 @@ export class SuhailApp extends AppServer {
   }>();
 
   /** How long the listening window stays open after activation (ms) */
-  private static readonly LISTENING_TIMEOUT_MS = 7_000;
+  private static readonly LISTENING_TIMEOUT_MS = 10_000;
 
   /** Minimum confidence (0-1) to accept a transcription. Below this is treated as noise. */
   private static readonly MIN_TRANSCRIPTION_CONFIDENCE = config.minTranscriptionConfidence;
@@ -166,9 +167,17 @@ export class SuhailApp extends AppServer {
       }
 
       // Discard transcriptions where detected language doesn't match configured language
+      // Exception: allow Arabic-script text through when lang="en" (possible transliteration)
       if (data.detectedLanguage && !data.detectedLanguage.startsWith(config.defaultLanguage)) {
-        logger.info(`[${sessionId}] Dropped language-mismatch transcription (detected=${data.detectedLanguage}, expected=${langCode}): "${data.text}"`);
-        return;
+        const hasArabicScript = /[\u0600-\u06FF]/.test(data.text);
+        const hasLatinChars = /[a-zA-Z]/.test(data.text);
+        const mightBeTransliteration = config.defaultLanguage === "en" && hasArabicScript && !hasLatinChars;
+
+        if (!mightBeTransliteration) {
+          logger.info(`[${sessionId}] Dropped language-mismatch transcription (detected=${data.detectedLanguage}, expected=${langCode}): "${data.text}"`);
+          return;
+        }
+        logger.info(`[${sessionId}] Language mismatch but possible transliteration — allowing: "${data.text}"`);
       }
 
       // Discard garbled or junk transcriptions
@@ -177,8 +186,11 @@ export class SuhailApp extends AppServer {
         return;
       }
 
-      logger.info(`[${sessionId}] Transcription (confidence=${confidence.toFixed(2)}): "${data.text}"`);
-      await this.handleTranscription(session, sessionId, data.text);
+      // Normalize script mismatches (e.g., Arabic-script English transliterations)
+      const normalizedText = await normalizeTranscription(data.text, config.defaultLanguage);
+
+      logger.info(`[${sessionId}] Transcription (confidence=${confidence.toFixed(2)}): "${normalizedText}"`);
+      await this.handleTranscription(session, sessionId, normalizedText);
     }, { disableLanguageIdentification: true });
 
     // Listen for button presses (log all for debugging)

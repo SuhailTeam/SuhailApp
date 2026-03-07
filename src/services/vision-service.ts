@@ -29,14 +29,15 @@ export async function describeScene(imageBase64: string): Promise<VisionResponse
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        model: "qwen/qwen3-vl-30b-a3b-thinking",
+        model: "google/gemini-2.5-flash-lite",
+        max_tokens: 150,
         messages: [
           {
             role: "user",
             content: [
               {
                 type: "text",
-                text: `Describe this scene in detail for a visually impaired person. Be concise but informative. ${langInstruction()}`
+                text: `You are the eyes of a blind person. Describe what's in front of them in 2-3 short sentences. Focus on people, obstacles, and key objects. Skip minor details. ${langInstruction()}`
               },
               {
                 type: "image_url",
@@ -87,14 +88,15 @@ export async function answerVisualQuestion(
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        model: "qwen/qwen3-vl-30b-a3b-thinking",
+        model: "google/gemini-2.5-flash-lite",
+        max_tokens: 150,
         messages: [
           {
             role: "user",
             content: [
               {
                 type: "text",
-                text: `${question}\n\nAnswer the question above based on the image. ${langInstruction()}`
+                text: `${question}\n\nAnswer briefly in 1-2 sentences based on the image. Be direct. ${langInstruction()}`
               },
               {
                 type: "image_url",
@@ -270,7 +272,8 @@ export async function extractText(imageBase64: string): Promise<string> {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        model: "qwen/qwen3-vl-30b-a3b-thinking",
+        model: "google/gemini-2.5-flash-lite",
+        max_tokens: 500,
         messages: [
           {
             role: "user",
