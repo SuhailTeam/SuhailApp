@@ -211,7 +211,17 @@ export async function detectObject(
             content: [
               {
                 type: "text",
-                text: `Look for "${targetObject}" in this image. Respond ONLY with a raw JSON object (no markdown) containing 'found' (boolean) and 'location' (string, a brief description of where it is in ${langName()}, or empty string if not found).`
+                text: `You are helping a visually impaired person find "${targetObject}" using their smart glasses camera.
+
+Look carefully at the entire image for "${targetObject}" or anything that closely resembles it.
+
+If found, describe its location using spatial directions relative to the person wearing the glasses:
+- Use directions like "to your left", "to your right", "straight ahead", "above you", "below you", "on the table in front of you", "on the floor to your left", etc.
+- Include distance cues when possible: "nearby", "at arm's reach", "far away"
+- Mention what it's near or on top of for context (e.g., "on the desk next to the laptop")
+
+Respond ONLY with a raw JSON object (no markdown):
+{"found": true/false, "location": "spatial description in ${langName()}, or empty string if not found"}`
               },
               {
                 type: "image_url",

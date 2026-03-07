@@ -14,6 +14,24 @@ export type CommandType =
   | "color-detect"
   | "visual-qa";
 
+/** Intent types returned by the LLM classifier (superset of CommandType) */
+export type IntentType =
+  | "scene_summarize"
+  | "ocr_read_text"
+  | "face_recognize"
+  | "face_enroll"
+  | "find_object"
+  | "currency_recognize"
+  | "color_detect"
+  | "visual_qa"
+  | "unknown";
+
+/** Result from the LLM intent classifier */
+export interface ClassificationResult {
+  intent: IntentType;
+  param?: string;
+}
+
 /** Result from the command router */
 export interface RouteResult {
   command: CommandType;

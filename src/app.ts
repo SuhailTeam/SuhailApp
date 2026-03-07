@@ -112,7 +112,11 @@ export class SuhailApp extends AppServer {
       res.json(this.activityLog);
     });
 
-    logger.info("Mini app API routes registered (/api/status, /api/activity)");
+    expressApp.get("/webview", (_req: any, res: any) => {
+      res.sendFile("index.html", { root: "./public" });
+    });
+
+    logger.info("Mini app API routes registered (/api/status, /api/activity, /webview)");
   }
 
   /**
@@ -258,14 +262,21 @@ export class SuhailApp extends AppServer {
       // Acknowledge receipt
       await speakBilingual(session, messages.received, sessionId);
 
-      // Route the transcription to the correct command
-      const route = routeCommand(text);
+      // Route the transcription to the correct command (LLM-based, with keyword fallback)
+      const route = await routeCommand(text, abortController.signal);
       if (!route) {
         this.deactivateListening(sessionId);
         return;
       }
       logger.info(`[${sessionId}] Routed to command: ${route.command}`);
       this.logActivity(`أمر صوتي: ${route.command}`);
+
+      // Handle "unknown" intent — not a visual command, speak help message
+      if (route.command === ("unknown" as any)) {
+        this.deactivateListening(sessionId);
+        await speakBilingual(session, messages.unknownCommand, sessionId);
+        return;
+      }
 
       const handler = this.handlers[route.command];
       if (!handler) {

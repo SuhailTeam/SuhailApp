@@ -100,4 +100,8 @@ export const messages = {
     ar: "انتهت مهلة الاستماع.",
     en: "Listening timed out.",
   },
+  unknownCommand: {
+    ar: "لم أفهم طلبك. يمكنني وصف المحيط، قراءة النصوص، التعرف على الوجوه، البحث عن أشياء، معرفة العملات، أو تحديد الألوان.",
+    en: "I didn't understand that. I can describe your surroundings, read text, recognize faces, find objects, identify currency, or detect colors.",
+  },
 } satisfies Record<string, BilingualMessage>;

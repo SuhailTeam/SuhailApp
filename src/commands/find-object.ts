@@ -29,10 +29,8 @@ export class FindObjectCommand implements CommandHandler {
       logger.info(`Object detection result: found=${result.found}, location=${result.location}`);
 
       if (result.found) {
-        await speakBilingual(session, {
-          ar: `${objectName} موجود ${result.location}`,
-          en: `${objectName} is ${result.location}`,
-        }, sessionId);
+        // The location already contains a full spatial description from the vision model
+        await speak(session, result.location, sessionId);
       } else {
         await speakBilingual(session, {
           ar: `ما قدرت ألاقي ${objectName} في الصورة.`,
