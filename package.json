@@ -10,10 +10,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@mentra/sdk": "latest",
-    "@tensorflow/tfjs-node": "^4.22.0",
-    "@vladmandic/face-api": "^1.7.15",
-    "canvas": "^3.2.1"
+    "@aws-sdk/client-rekognition": "^3.887.0",
+    "@mentra/sdk": "latest"
   },
   "devDependencies": {
     "@types/bun": "latest",
