@@ -122,7 +122,7 @@ export async function loadPersistedFaces(): Promise<void> {
     await ensureCollectionReady();
   } catch (error) {
     logger.error("Failed to initialize Rekognition collection:", error);
-    throw error;
+    logger.warn("Face recognition will be unavailable until AWS credentials are configured correctly");
   }
 }
 
