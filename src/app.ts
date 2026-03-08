@@ -1,3 +1,4 @@
+import * as fs from "node:fs/promises";
 import { AppServer, type AppSession } from "@mentra/sdk";
 import { routeCommand } from "./commands/command-router";
 import { SceneSummarizeCommand } from "./commands/scene-summarize";
@@ -9,12 +10,14 @@ import { CurrencyRecognizeCommand } from "./commands/currency-recognize";
 import { VisualQACommand } from "./commands/visual-qa";
 import { ColorDetectCommand } from "./commands/color-detect";
 import { AIHandler } from "./services/ai-handler";
+import { getFacePhotoPath } from "./services/face-service";
 import { speak, speakBilingual, messages, getLastResponse, clearLastResponse } from "./services/tts-service";
 import { config } from "./utils/config";
 import { Logger } from "./utils/logger";
 import type { CommandHandler, CommandType, ListeningState } from "./types";
 import { isValidTranscription } from "./utils/transcription-filter";
 import { normalizeTranscription } from "./utils/transcription-normalizer";
+import { capturePhoto } from "./utils/image-utils";
 
 const logger = new Logger("SuhailApp");
 
@@ -41,6 +44,7 @@ export class SuhailApp extends AppServer {
     timer: ReturnType<typeof setTimeout>;
     activatedAt: number;
     abortController?: AbortController;
+    preCapture?: string | null;
   }>();
 
   /** How long the listening window stays open after activation (ms) */
@@ -100,6 +104,9 @@ export class SuhailApp extends AppServer {
    */
   private registerApiRoutes(): void {
     const expressApp = this.getExpressApp();
+    // Enable JSON body parsing for API routes (needed for PUT /api/faces/:faceId)
+    const { json } = require("express");
+    expressApp.use("/api", json());
 
     expressApp.get("/api/status", (_req: any, res: any) => {
       res.json({
@@ -113,11 +120,56 @@ export class SuhailApp extends AppServer {
       res.json(this.activityLog);
     });
 
+    expressApp.get("/api/faces", async (_req: any, res: any) => {
+      try {
+        const faces = await this.ai.listFaces();
+        res.json({ faces, count: faces.length });
+      } catch (error) {
+        logger.error("Failed to list faces:", error);
+        res.status(500).json({ error: "Failed to list faces" });
+      }
+    });
+
+    expressApp.get("/api/faces/:faceId/photo", async (req: any, res: any) => {
+      try {
+        const photoPath = getFacePhotoPath(req.params.faceId);
+        await fs.access(photoPath);
+        res.type("image/jpeg").sendFile(photoPath);
+      } catch {
+        res.status(404).json({ error: "Photo not found" });
+      }
+    });
+
+    expressApp.delete("/api/faces/:faceId", async (req: any, res: any) => {
+      try {
+        await this.ai.deleteFace(req.params.faceId);
+        res.json({ success: true });
+      } catch (error) {
+        logger.error("Failed to delete face:", error);
+        res.status(500).json({ error: "Failed to delete face" });
+      }
+    });
+
+    expressApp.put("/api/faces/:faceId", async (req: any, res: any) => {
+      try {
+        const { name } = req.body || {};
+        if (!name || typeof name !== "string") {
+          res.status(400).json({ error: "Name is required" });
+          return;
+        }
+        await this.ai.renameFace(req.params.faceId, name);
+        res.json({ success: true });
+      } catch (error) {
+        logger.error("Failed to rename face:", error);
+        res.status(500).json({ error: "Failed to rename face" });
+      }
+    });
+
     expressApp.get("/webview", (_req: any, res: any) => {
       res.sendFile("index.html", { root: "./public" });
     });
 
-    logger.info("Mini app API routes registered (/api/status, /api/activity, /webview)");
+    logger.info("Mini app API routes registered (/api/status, /api/activity, /api/faces, /webview)");
   }
 
   /**
@@ -298,10 +350,13 @@ export class SuhailApp extends AppServer {
         return;
       }
 
+      // Pass pre-captured photo to handler if available
+      const preCapture = listeningEntry.preCapture || undefined;
+
       // Enable TTS echo guard before the handler speaks, clear after + buffer
       this.speakingSessions.add(sessionId);
       try {
-        await handler.execute(session, { ...route.params, _sessionId: sessionId });
+        await handler.execute(session, { ...route.params, _sessionId: sessionId, ...(preCapture ? { _preCapture: preCapture } : {}) });
       } finally {
         this.deactivateListening(sessionId);
         setTimeout(() => {
@@ -342,6 +397,16 @@ export class SuhailApp extends AppServer {
 
     this.listeningSessions.set(sessionId, { state: "active", timer, activatedAt: Date.now() });
     logger.info(`[${sessionId}] Listening mode activated (${SuhailApp.LISTENING_TIMEOUT_MS / 1000}s window)`);
+
+    // Pre-capture photo in parallel with the listening cue to reduce delay
+    const photoCapturePromise = capturePhoto(session).then((photo) => {
+      const entry = this.listeningSessions.get(sessionId);
+      if (entry) {
+        entry.preCapture = photo;
+        logger.info(`[${sessionId}] Pre-capture ${photo ? "ready" : "failed"}`);
+      }
+    });
+
     await speakBilingual(session, messages.listening, sessionId);
 
     // Reset activatedAt AFTER TTS finishes so the grace period starts

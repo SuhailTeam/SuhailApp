@@ -19,7 +19,7 @@ export class FindObjectCommand implements CommandHandler {
     logger.info(`Executing find object: "${objectName}"...`);
 
     try {
-      const photo = await capturePhoto(session);
+      const photo = params?._preCapture || await capturePhoto(session);
       if (!photo) {
         await speakBilingual(session, messages.cameraError);
         return;

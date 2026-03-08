@@ -96,7 +96,7 @@ export async function answerVisualQuestion(
             content: [
               {
                 type: "text",
-                text: `${question}\n\nAnswer briefly in 1-2 sentences based on the image. Be direct. ${langInstruction()}`
+                text: `${question}\n\nAnswer briefly in 1-2 sentences based on the image. Be direct. Your response will be read aloud by text-to-speech, so use plain spoken language only — no markdown, no LaTeX, no special symbols. Write math as spoken words (e.g. "x equals 37 over 5" not "$x = 37/5$"). ${langInstruction()}`
               },
               {
                 type: "image_url",

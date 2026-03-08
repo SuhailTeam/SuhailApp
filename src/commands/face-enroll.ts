@@ -67,7 +67,7 @@ export class FaceEnrollCommand implements CommandHandler {
         try {
           const name = raw;
           logger.info(`Completing enrollment for name: ${name}`);
-          const success = await ai.enrollFace(name, pendingPhoto);
+          const faceId = await ai.enrollFace(name, pendingPhoto);
           this.clearPending(sessionId);
 
           // If interrupted while processing, skip completion speech.
@@ -77,7 +77,7 @@ export class FaceEnrollCommand implements CommandHandler {
             return;
           }
 
-          if (success) {
+          if (faceId) {
             await speakBilingual(session, {
               ar: `تم تسجيل ${name} بنجاح.`,
               en: `${name} has been enrolled successfully.`,
@@ -97,8 +97,8 @@ export class FaceEnrollCommand implements CommandHandler {
       // New enrollment request should clear stale interrupt markers.
       this.interruptedEnrollments.delete(sessionId);
 
-      // Step 1: Capture photo
-      const photo = await capturePhoto(session);
+      // Step 1: Capture photo for enrollment
+      const photo = await capturePhoto(session) || params?._preCapture;
       if (!photo) {
         await speakBilingual(session, messages.cameraError);
         return;

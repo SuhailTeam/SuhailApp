@@ -49,9 +49,27 @@ export class AIHandler {
   }
 
   /** Enroll a new face with a name */
-  async enrollFace(name: string, imageBase64: string): Promise<boolean> {
+  async enrollFace(name: string, imageBase64: string): Promise<string | null> {
     logger.info(`AI Handler → Face Enrollment for "${name}"`);
     return faceService.enrollFace(name, imageBase64);
+  }
+
+  /** List all enrolled faces */
+  async listFaces(): Promise<Array<{ name: string; faceId: string; hasPhoto: boolean }>> {
+    logger.info("AI Handler → List Faces");
+    return faceService.listFaces();
+  }
+
+  /** Delete an enrolled face */
+  async deleteFace(faceId: string): Promise<void> {
+    logger.info(`AI Handler → Delete Face ${faceId}`);
+    return faceService.deleteFace(faceId);
+  }
+
+  /** Rename an enrolled face */
+  async renameFace(faceId: string, newName: string): Promise<void> {
+    logger.info(`AI Handler → Rename Face ${faceId} to "${newName}"`);
+    return faceService.renameFace(faceId, newName);
   }
 
   /** Find a specific object in a photo */

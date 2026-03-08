@@ -349,6 +349,219 @@
     .empty-msg p { font-size: 12px; }
     .empty-hint { margin-top: 4px; font-size: 10px !important; opacity: 0.7; }
 
+    /* ── Face Contact List ──────────── */
+    .face-item {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 12px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+    }
+    .face-item:last-child { border-bottom: none; padding-bottom: 0; }
+    .face-item:first-child { padding-top: 0; }
+    .face-avatar {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: rgba(129,140,248,0.15);
+      border: 1px solid rgba(129,140,248,0.25);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 17px;
+      font-weight: 700;
+      flex-shrink: 0;
+      color: #a5b4fc;
+      overflow: hidden;
+    }
+    .face-avatar img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .face-info { flex: 1; min-width: 0; }
+    .face-name {
+      font-size: 14px;
+      font-weight: 600;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .face-edit-btn {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
+      padding: 6px 10px;
+      color: var(--muted);
+      font-size: 13px;
+      cursor: pointer;
+      flex-shrink: 0;
+      font-family: var(--font);
+      transition: background 150ms var(--ease);
+    }
+    .face-edit-btn:hover { background: rgba(255,255,255,0.12); color: var(--text); }
+    .face-rename-input {
+      background: var(--surface2);
+      border: 1px solid var(--accent);
+      border-radius: 8px;
+      padding: 6px 10px;
+      color: var(--text);
+      font-size: 13px;
+      font-family: var(--font);
+      width: 100%;
+      outline: none;
+    }
+
+    /* ── Face Detail Modal ──────────── */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.85);
+      backdrop-filter: blur(12px);
+      z-index: 100;
+      justify-content: center;
+      align-items: center;
+      animation: modalFadeIn 0.2s ease;
+    }
+    .modal-overlay.open { display: flex; }
+    @keyframes modalFadeIn {
+      from { opacity: 0; }
+      to   { opacity: 1; }
+    }
+    .modal {
+      width: 100%;
+      max-width: 420px;
+      max-height: 90vh;
+      overflow-y: auto;
+      margin: 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      box-shadow: 0 24px 64px rgba(0,0,0,0.5);
+      animation: modalSlideUp 0.25s var(--ease);
+    }
+    @keyframes modalSlideUp {
+      from { opacity: 0; transform: translateY(40px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .modal-close {
+      position: absolute;
+      top: 16px;
+      inset-inline-end: 16px;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.12);
+      color: var(--text);
+      font-size: 18px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 2;
+      font-family: var(--font);
+    }
+    .modal-close:hover { background: rgba(255,255,255,0.15); }
+    .modal-photo-wrap {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 1;
+      background: var(--surface2);
+      border-radius: 20px 20px 0 0;
+      overflow: hidden;
+      cursor: pointer;
+    }
+    .modal-photo-wrap img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .modal-photo-placeholder {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 80px;
+      font-weight: 800;
+      color: rgba(129,140,248,0.4);
+    }
+    .modal-body {
+      padding: 24px 20px;
+    }
+    .modal-name {
+      font-size: 22px;
+      font-weight: 800;
+      margin-bottom: 6px;
+    }
+    .modal-meta {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 20px;
+    }
+    .modal-actions {
+      display: flex;
+      gap: 10px;
+    }
+    .modal-btn {
+      flex: 1;
+      padding: 12px 16px;
+      border-radius: 12px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      color: var(--text);
+      font-family: var(--font);
+      transition: background 150ms var(--ease);
+    }
+    .modal-btn:hover { background: rgba(255,255,255,0.08); }
+    .modal-btn.primary {
+      background: rgba(56,189,248,0.15);
+      border-color: rgba(56,189,248,0.25);
+      color: var(--accent);
+    }
+    .modal-btn.primary:hover { background: rgba(56,189,248,0.25); }
+    .modal-btn.danger {
+      background: rgba(248,113,113,0.15);
+      border-color: rgba(248,113,113,0.25);
+      color: var(--red);
+    }
+    .modal-btn.danger:hover { background: rgba(248,113,113,0.25); }
+    .modal-rename-input {
+      width: 100%;
+      padding: 12px 14px;
+      border-radius: 12px;
+      background: var(--surface2);
+      border: 1px solid var(--accent);
+      color: var(--text);
+      font-size: 16px;
+      font-family: var(--font);
+      outline: none;
+      margin-bottom: 12px;
+    }
+
+    /* ── Fullscreen Photo Viewer ───── */
+    .photo-viewer {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: #000;
+      z-index: 200;
+      justify-content: center;
+      align-items: center;
+      cursor: zoom-out;
+    }
+    .photo-viewer.open { display: flex; }
+    .photo-viewer img {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+    }
+
     /* ── Footer ──────────────────────── */
     footer {
       text-align: center;
@@ -369,6 +582,7 @@
     .card:nth-of-type(1) { animation-delay: 0.1s; }
     .card:nth-of-type(2) { animation-delay: 0.15s; }
     .card:nth-of-type(3) { animation-delay: 0.2s; }
+    .card:nth-of-type(4) { animation-delay: 0.25s; }
   </style>
 </head>
 <body>
@@ -398,10 +612,29 @@
 
     <div class="card" id="commands-card"></div>
     <div class="card" id="gestures-card"></div>
+    <div class="card" id="faces-card"></div>
     <div class="card" id="activity-card"></div>
 
     <footer id="footer"></footer>
   </main>
+
+  <!-- Face Detail Modal -->
+  <div class="modal-overlay" id="face-modal" onclick="if(event.target===this)closeModal()">
+    <div class="modal">
+      <button class="modal-close" onclick="closeModal()">&times;</button>
+      <div class="modal-photo-wrap" id="modal-photo-wrap"></div>
+      <div class="modal-body">
+        <div class="modal-name" id="modal-name"></div>
+        <div class="modal-meta" id="modal-meta"></div>
+        <div id="modal-actions"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Fullscreen Photo Viewer -->
+  <div class="photo-viewer" id="photo-viewer" onclick="closePhotoViewer()">
+    <img id="photo-viewer-img" src="" alt="">
+  </div>
 
   <script>
     /* ── Bilingual Strings ──────────────────────────── */
@@ -425,6 +658,17 @@
       hourSuffix:  { en: "h",   ar: " س" },
       keyword:     { en: "Say:",  ar: "قل:" },
       fallbackDesc:{ en: "Ask any question not matched above", ar: "اطرح أي سؤال غير مطابق أعلاه" },
+      faces:       { en: "Face Contact Book", ar: "دفتر الوجوه" },
+      facesEmpty:  { en: "No faces enrolled yet", ar: "لا يوجد وجوه مسجلة بعد" },
+      facesHint:   { en: "Say \"Enroll\" to add a face", ar: "قل \"سجّل\" لإضافة وجه" },
+      facesEdit:   { en: "Edit", ar: "تعديل" },
+      facesRename: { en: "Rename", ar: "إعادة تسمية" },
+      facesSave:   { en: "Save", ar: "حفظ" },
+      facesCancel: { en: "Cancel", ar: "إلغاء" },
+      facesEnrolled: { en: "Enrolled", ar: "تم التسجيل" },
+      facesNoPhoto:  { en: "No photo available", ar: "لا توجد صورة" },
+      facesDelete:   { en: "Delete", ar: "حذف" },
+      facesDeleteConfirm: { en: "Are you sure you want to delete this contact?", ar: "هل أنت متأكد من حذف جهة الاتصال هذه؟" },
       toggleLabel: { en: "العربية", ar: "English" },
       footerL1:    { en: "Graduation Project SWE 496 \u2014 College of Computer & Information Sciences", ar: "مشروع تخرج SWE 496 · كلية علوم الحاسب والمعلومات" },
       footerL2:    { en: "King Saud University \u2014 2024\u20132025", ar: "جامعة الملك سعود · 2024\u20132025" },
@@ -479,12 +723,14 @@
 
       renderCommands();
       renderGestures();
+      renderFaces([]);
       renderActivityUI();
       renderFooter();
 
       // Re-fetch to update status text
       fetchStatus();
       fetchActivity();
+      fetchFaces();
     }
 
     function renderCommands() {
@@ -612,10 +858,196 @@
       }).catch(function() {});
     }
 
+    /* ── Face Contact Book ──────────────────────────── */
+    var cachedFaces = [];
+    var currentModalFace = null;
+
+    function renderFaces(faces) {
+      cachedFaces = faces || [];
+      var html = '<div class="card-title"><span class="title-icon">\uD83D\uDC64</span>' + t(STRINGS.faces) + '</div>';
+
+      if (!cachedFaces.length) {
+        html += '<div class="empty-msg"><div class="empty-icon">\uD83D\uDC65</div>'
+          + '<p>' + esc(t(STRINGS.facesEmpty)) + '</p>'
+          + '<p class="empty-hint">' + esc(t(STRINGS.facesHint)) + '</p></div>';
+      } else {
+        // Deduplicate by name
+        var seen = {};
+        var unique = [];
+        cachedFaces.forEach(function(f) {
+          if (!seen[f.name]) {
+            seen[f.name] = true;
+            unique.push(f);
+          }
+        });
+
+        unique.forEach(function(f, i) {
+          var initial = f.name.charAt(0).toUpperCase();
+          var avatarContent = f.hasPhoto
+            ? '<img src="/api/faces/' + encodeURIComponent(f.faceId) + '/photo" alt="' + esc(f.name) + '">'
+            : esc(initial);
+
+          html += '<div class="face-item" style="cursor:pointer" onclick="openFaceModal(\'' + esc(f.faceId) + '\')">'
+            + '<div class="face-avatar">' + avatarContent + '</div>'
+            + '<div class="face-info">'
+            + '<div class="face-name">' + esc(f.name) + '</div>'
+            + '</div>'
+            + '</div>';
+        });
+      }
+
+      document.getElementById("faces-card").innerHTML = html;
+    }
+
+    /* ── Face Detail Modal ──────────────────────────── */
+    function findFace(faceId) {
+      for (var i = 0; i < cachedFaces.length; i++) {
+        if (cachedFaces[i].faceId === faceId) return cachedFaces[i];
+      }
+      return null;
+    }
+
+    function openFaceModal(faceId) {
+      var face = findFace(faceId);
+      if (!face) return;
+      currentModalFace = face;
+
+      var photoWrap = document.getElementById("modal-photo-wrap");
+      if (face.hasPhoto) {
+        var photoUrl = "/api/faces/" + encodeURIComponent(face.faceId) + "/photo";
+        photoWrap.innerHTML = '<img src="' + photoUrl + '" alt="' + esc(face.name) + '">';
+        photoWrap.onclick = function() { openPhotoViewer(photoUrl); };
+        photoWrap.style.cursor = "zoom-in";
+      } else {
+        var initial = face.name.charAt(0).toUpperCase();
+        photoWrap.innerHTML = '<div class="modal-photo-placeholder">' + esc(initial) + '</div>';
+        photoWrap.onclick = null;
+        photoWrap.style.cursor = "default";
+      }
+
+      document.getElementById("modal-name").textContent = face.name;
+      document.getElementById("modal-meta").textContent = t(STRINGS.facesEnrolled);
+      renderModalActions(face);
+
+      document.getElementById("face-modal").classList.add("open");
+    }
+
+    function renderModalActions(face) {
+      document.getElementById("modal-actions").innerHTML =
+        '<div class="modal-actions">'
+        + '<button class="modal-btn primary" onclick="startModalRename()">' + esc(t(STRINGS.facesRename)) + '</button>'
+        + '<button class="modal-btn danger" onclick="deleteFaceContact()">' + esc(t(STRINGS.facesDelete)) + '</button>'
+        + '</div>';
+    }
+
+    function startModalRename() {
+      if (!currentModalFace) return;
+      var actionsDiv = document.getElementById("modal-actions");
+      actionsDiv.innerHTML =
+        '<input class="modal-rename-input" id="modal-rename-input" value="' + esc(currentModalFace.name) + '" />'
+        + '<div class="modal-actions">'
+        + '<button class="modal-btn" onclick="cancelModalRename()">' + esc(t(STRINGS.facesCancel)) + '</button>'
+        + '<button class="modal-btn primary" onclick="submitModalRename()">' + esc(t(STRINGS.facesSave)) + '</button>'
+        + '</div>';
+      var input = document.getElementById("modal-rename-input");
+      input.focus();
+      input.select();
+      input.addEventListener("keydown", function(e) {
+        if (e.key === "Enter") submitModalRename();
+        if (e.key === "Escape") cancelModalRename();
+      });
+    }
+
+    function cancelModalRename() {
+      if (currentModalFace) renderModalActions(currentModalFace);
+    }
+
+    function submitModalRename() {
+      if (!currentModalFace) return;
+      var input = document.getElementById("modal-rename-input");
+      var newName = input.value.trim();
+      if (!newName) return;
+
+      fetch("/api/faces/" + encodeURIComponent(currentModalFace.faceId), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newName }),
+      }).then(function(r) {
+        if (!r.ok) throw new Error();
+        return fetchFaces();
+      }).then(function() {
+        // Update modal with new data
+        var updated = findFace(currentModalFace.faceId);
+        if (updated) {
+          document.getElementById("modal-name").textContent = updated.name;
+          currentModalFace = updated;
+          renderModalActions(updated);
+        }
+      }).catch(function() {
+        fetchFaces();
+        cancelModalRename();
+      });
+    }
+
+    function deleteFaceContact() {
+      if (!currentModalFace) return;
+      if (!confirm(t(STRINGS.facesDeleteConfirm))) return;
+
+      fetch("/api/faces/" + encodeURIComponent(currentModalFace.faceId), {
+        method: "DELETE",
+      }).then(function(r) {
+        if (!r.ok) throw new Error();
+        closeModal();
+        fetchFaces();
+      }).catch(function() {
+        closeModal();
+        fetchFaces();
+      });
+    }
+
+    function closeModal() {
+      document.getElementById("face-modal").classList.remove("open");
+      currentModalFace = null;
+    }
+
+    /* ── Fullscreen Photo Viewer ─────────────────────── */
+    function openPhotoViewer(url) {
+      document.getElementById("photo-viewer-img").src = url;
+      document.getElementById("photo-viewer").classList.add("open");
+    }
+
+    function closePhotoViewer() {
+      document.getElementById("photo-viewer").classList.remove("open");
+      document.getElementById("photo-viewer-img").src = "";
+    }
+
+    // Close modal/viewer on Escape key
+    document.addEventListener("keydown", function(e) {
+      if (e.key === "Escape") {
+        if (document.getElementById("photo-viewer").classList.contains("open")) {
+          closePhotoViewer();
+        } else if (document.getElementById("face-modal").classList.contains("open")) {
+          closeModal();
+        }
+      }
+    });
+
+    function fetchFaces() {
+      return fetch("/api/faces").then(function(r) {
+        if (!r.ok) throw new Error();
+        return r.json();
+      }).then(function(data) {
+        renderFaces(data.faces || []);
+      }).catch(function() {
+        renderFaces([]);
+      });
+    }
+
     /* ── Init ───────────────────────────────────────── */
     setLanguage(currentLang);
     setInterval(fetchStatus,   POLL_MS);
     setInterval(fetchActivity, POLL_MS);
+    setInterval(fetchFaces, 30000);
   </script>
 </body>
 </html>
