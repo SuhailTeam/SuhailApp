@@ -5,28 +5,46 @@ import { Logger } from "../utils/logger";
 
 const logger = new Logger("TTS");
 
+/** Stores the last spoken response per session for repeat functionality */
+const lastResponses = new Map<string, string>();
+
 /**
  * Speaks a bilingual message to the user through the glasses speakers.
  * Selects the appropriate language based on config.
  */
 export async function speakBilingual(
   session: AppSession,
-  message: BilingualMessage
+  message: BilingualMessage,
+  sessionId?: string
 ): Promise<void> {
   const text = message[config.defaultLanguage];
-  await speak(session, text);
+  await speak(session, text, sessionId);
 }
 
 /**
  * Speaks a text string to the user through the glasses speakers.
+ * Optionally tracks the response for repeat functionality.
  */
-export async function speak(session: AppSession, text: string): Promise<void> {
+export async function speak(session: AppSession, text: string, sessionId?: string): Promise<void> {
   try {
     logger.info(`Speaking: "${text.substring(0, 80)}${text.length > 80 ? "..." : ""}"`);
     await session.audio.speak(text);
+    if (sessionId) {
+      lastResponses.set(sessionId, text);
+    }
   } catch (error) {
     logger.error("TTS failed:", error);
   }
+}
+
+/** Returns the last spoken response for a session, if any */
+export function getLastResponse(sessionId: string): string | undefined {
+  return lastResponses.get(sessionId);
+}
+
+/** Clears the stored last response for a session */
+export function clearLastResponse(sessionId: string): void {
+  lastResponses.delete(sessionId);
 }
 
 /**
@@ -61,5 +79,33 @@ export const messages = {
   repeatNoHistory: {
     ar: "ما فيه رد سابق أعيده.",
     en: "There is no previous response to repeat.",
+  },
+  listening: {
+    ar: "تفضل",
+    en: "Listening",
+  },
+  received: {
+    ar: "حسناً",
+    en: "Got it",
+  },
+  cancelled: {
+    ar: "تم الإلغاء",
+    en: "Cancelled",
+  },
+  didntCatch: {
+    ar: "لم أسمع، حاول مرة أخرى",
+    en: "I didn't catch that, try again",
+  },
+  listeningTimeout: {
+    ar: "انتهت مهلة الاستماع.",
+    en: "Listening timed out.",
+  },
+  unknownCommand: {
+    ar: "لم أفهم طلبك. يمكنني وصف المحيط، قراءة النصوص، التعرف على الوجوه، البحث عن أشياء، معرفة العملات، أو تحديد الألوان.",
+    en: "I didn't understand that. I can describe your surroundings, read text, recognize faces, find objects, identify currency, or detect colors.",
+  },
+  interruptedListening: {
+    ar: "تمت المقاطعة. عدنا لوضع الاستماع.",
+    en: "Interrupted. Back to listening mode.",
   },
 } satisfies Record<string, BilingualMessage>;

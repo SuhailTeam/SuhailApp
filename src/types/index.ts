@@ -14,6 +14,24 @@ export type CommandType =
   | "color-detect"
   | "visual-qa";
 
+/** Intent types returned by the LLM classifier (superset of CommandType) */
+export type IntentType =
+  | "scene_summarize"
+  | "ocr_read_text"
+  | "face_recognize"
+  | "face_enroll"
+  | "find_object"
+  | "currency_recognize"
+  | "color_detect"
+  | "visual_qa"
+  | "unknown";
+
+/** Result from the LLM intent classifier */
+export interface ClassificationResult {
+  intent: IntentType;
+  param?: string;
+}
+
 /** Result from the command router */
 export interface RouteResult {
   command: CommandType;
@@ -35,12 +53,6 @@ export interface VisionResponse {
   confidence: number;
 }
 
-/** OCR API response */
-export interface OcrResponse {
-  text: string;
-  confidence: number;
-}
-
 /** Face recognition result */
 export interface FaceRecognitionResult {
   name: string | null;
@@ -50,10 +62,8 @@ export interface FaceRecognitionResult {
 
 /** Face enrollment data stored in memory */
 export interface FaceRecord {
-  id: string;
   name: string;
-  embedding: number[];
-  createdAt: Date;
+  descriptor: number[];
 }
 
 /** Object detection result */
@@ -86,3 +96,6 @@ export interface BilingualMessage {
   ar: string;
   en: string;
 }
+
+/** Listening session lifecycle states */
+export type ListeningState = "idle" | "active" | "processing";

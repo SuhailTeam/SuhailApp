@@ -1,120 +1,146 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="en" dir="ltr">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-  <title>سهيل — مساعد النظارات الذكية</title>
+  <title>Suhail — Smart Glasses Assistant</title>
   <style>
     :root {
-      --bg: #0f172a;
-      --surface: #1e293b;
-      --surface2: #263349;
-      --border: #334155;
+      --bg: #0b1120;
+      --surface: #151d2e;
+      --surface2: #1c2640;
+      --border: #253047;
       --accent: #38bdf8;
       --accent2: #818cf8;
-      --green: #4ade80;
+      --green: #34d399;
       --red: #f87171;
       --yellow: #fbbf24;
       --text: #f1f5f9;
-      --muted: #94a3b8;
-      --radius: 14px;
-      --shadow: 0 4px 24px rgba(0,0,0,0.35);
+      --muted: #8896ab;
+      --radius: 16px;
+      --shadow: 0 2px 12px rgba(0,0,0,0.3);
+      --font: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      --ease: cubic-bezier(0.4, 0, 0.2, 1);
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
-      font-family: 'Segoe UI', 'Cairo', system-ui, sans-serif;
+      font-family: var(--font);
       background: var(--bg);
       color: var(--text);
       min-height: 100vh;
-      padding-bottom: 32px;
       -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
     }
 
-    /* ── Header ─────────────────────────────── */
+    /* ── Header ─────────────────────────── */
     header {
-      background: linear-gradient(160deg, #1e3a5f 0%, #0f172a 100%);
+      background: linear-gradient(170deg, #162240 0%, var(--bg) 100%);
       border-bottom: 1px solid var(--border);
-      padding: 28px 20px 24px;
+      padding: 32px 20px 28px;
       text-align: center;
       position: relative;
-      overflow: hidden;
     }
     header::before {
       content: '';
       position: absolute;
       inset: 0;
-      background: radial-gradient(ellipse at 70% 30%, rgba(56,189,248,0.08) 0%, transparent 70%);
+      background: radial-gradient(ellipse at 60% 20%, rgba(56,189,248,0.06) 0%, transparent 70%);
       pointer-events: none;
     }
     .app-logo {
-      width: 64px;
-      height: 64px;
-      border-radius: 18px;
-      background: linear-gradient(135deg, #1d4ed8, #0ea5e9);
+      width: 56px;
+      height: 56px;
+      border-radius: 16px;
+      background: linear-gradient(135deg, #2563eb, #0ea5e9);
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 30px;
+      font-size: 26px;
       font-weight: 900;
       color: #fff;
-      margin: 0 auto 12px;
-      box-shadow: 0 8px 24px rgba(14,165,233,0.35);
-      letter-spacing: -1px;
+      margin: 0 auto 14px;
+      box-shadow: 0 6px 20px rgba(14,165,233,0.3);
     }
     header h1 {
-      font-size: 26px;
+      font-size: 24px;
       font-weight: 800;
-      letter-spacing: -0.5px;
+      letter-spacing: -0.3px;
       margin-bottom: 4px;
     }
-    header .tagline {
+    .tagline {
       font-size: 13px;
       color: var(--muted);
-      margin-bottom: 16px;
+      margin-bottom: 18px;
     }
     .status-badge {
       display: inline-flex;
       align-items: center;
-      gap: 7px;
-      background: rgba(255,255,255,0.06);
-      border: 1px solid rgba(255,255,255,0.1);
+      gap: 8px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.08);
       border-radius: 20px;
-      padding: 5px 14px;
+      padding: 6px 16px;
       font-size: 12px;
+      font-weight: 500;
       color: var(--text);
-      backdrop-filter: blur(8px);
     }
     .dot {
-      width: 9px;
-      height: 9px;
+      width: 8px;
+      height: 8px;
       border-radius: 50%;
       background: var(--muted);
       flex-shrink: 0;
     }
     .dot.online {
       background: var(--green);
-      box-shadow: 0 0 0 2px rgba(74,222,128,0.25);
+      box-shadow: 0 0 0 3px rgba(52,211,153,0.2);
       animation: pulse 2s ease-in-out infinite;
     }
     .dot.offline { background: var(--red); }
     @keyframes pulse {
-      0%, 100% { box-shadow: 0 0 0 2px rgba(74,222,128,0.25); }
-      50%       { box-shadow: 0 0 0 5px rgba(74,222,128,0); }
+      0%, 100% { box-shadow: 0 0 0 3px rgba(52,211,153,0.2); }
+      50%      { box-shadow: 0 0 0 6px rgba(52,211,153,0); }
     }
 
-    /* ── Main layout ─────────────────────────── */
+    /* ── Language Toggle ───────────────── */
+    .lang-toggle {
+      position: absolute;
+      top: 16px;
+      inset-inline-end: 16px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 10px;
+      padding: 7px 14px;
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      backdrop-filter: blur(8px);
+      transition: background 150ms var(--ease), border-color 150ms var(--ease);
+      z-index: 10;
+      font-family: var(--font);
+    }
+    .lang-toggle:hover {
+      background: rgba(255,255,255,0.12);
+      border-color: rgba(255,255,255,0.2);
+    }
+    .lang-toggle:active {
+      transform: scale(0.97);
+    }
+
+    /* ── Main Layout ─────────────────── */
     main {
       max-width: 480px;
       margin: 0 auto;
-      padding: 16px;
+      padding: 16px 16px 32px;
       display: flex;
       flex-direction: column;
       gap: 14px;
     }
 
-    /* ── Stats row ───────────────────────────── */
+    /* ── Stats Row ───────────────────── */
     .stats-row {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -124,203 +150,180 @@
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: var(--radius);
-      padding: 16px 12px;
+      padding: 18px 14px;
       text-align: center;
       box-shadow: var(--shadow);
     }
     .stat-value {
-      font-size: 26px;
+      font-size: 28px;
       font-weight: 800;
       color: var(--accent);
       line-height: 1;
-      margin-bottom: 5px;
+      margin-bottom: 6px;
       font-variant-numeric: tabular-nums;
     }
     .stat-label {
       font-size: 11px;
       color: var(--muted);
       font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
     }
 
-    /* ── Generic card ────────────────────────── */
+    /* ── Card ────────────────────────── */
     .card {
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: var(--radius);
-      padding: 18px 16px;
+      padding: 20px 18px;
       box-shadow: var(--shadow);
     }
     .card-title {
-      font-size: 14px;
+      font-size: 15px;
       font-weight: 700;
       color: var(--text);
-      margin-bottom: 14px;
+      margin-bottom: 16px;
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 10px;
     }
     .title-icon {
-      width: 30px;
-      height: 30px;
-      border-radius: 8px;
-      background: rgba(56,189,248,0.12);
-      border: 1px solid rgba(56,189,248,0.2);
+      width: 32px;
+      height: 32px;
+      border-radius: 9px;
+      background: rgba(56,189,248,0.1);
+      border: 1px solid rgba(56,189,248,0.15);
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 15px;
+      font-size: 16px;
       flex-shrink: 0;
     }
-    .card-title .en-sub {
-      margin-right: auto;
-      font-size: 11px;
-      color: var(--muted);
-      font-weight: 400;
-    }
-    [dir="rtl"] .card-title .en-sub { margin-right: 0; margin-left: auto; }
 
-    /* ── Command list ────────────────────────── */
+    /* ── Command List ────────────────── */
     .cmd-item {
       display: flex;
-      align-items: flex-start;
-      gap: 12px;
+      align-items: center;
+      gap: 14px;
       padding: 12px 0;
-      border-bottom: 1px solid var(--border);
+      border-bottom: 1px solid rgba(255,255,255,0.04);
     }
     .cmd-item:last-child { border-bottom: none; padding-bottom: 0; }
     .cmd-item:first-child { padding-top: 0; }
     .cmd-icon {
-      width: 38px;
-      height: 38px;
-      border-radius: 10px;
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 19px;
+      flex-shrink: 0;
+    }
+    .cmd-info { flex: 1; min-width: 0; }
+    .cmd-name {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    .cmd-desc {
+      font-size: 11px;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    .tags { display: flex; flex-wrap: wrap; gap: 5px; }
+    .tag {
+      border-radius: 6px;
+      padding: 3px 8px;
+      font-size: 10px;
+      font-weight: 600;
+      background: rgba(56,189,248,0.08);
+      color: #7dd3fc;
+      border: 1px solid rgba(56,189,248,0.15);
+    }
+    .tag.fallback {
+      background: rgba(129,140,248,0.08);
+      color: #a5b4fc;
+      border-color: rgba(129,140,248,0.15);
+    }
+
+    /* ── Gesture List ────────────────── */
+    .gesture-item {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 12px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+    }
+    .gesture-item:last-child { border-bottom: none; padding-bottom: 0; }
+    .gesture-item:first-child { padding-top: 0; }
+    .gesture-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
       display: flex;
       align-items: center;
       justify-content: center;
       font-size: 18px;
       flex-shrink: 0;
     }
-    .cmd-info { flex: 1; min-width: 0; }
-    .cmd-ar {
-      font-size: 14px;
-      font-weight: 700;
-      margin-bottom: 1px;
-    }
-    .cmd-en {
-      font-size: 11px;
-      color: var(--muted);
-      margin-bottom: 6px;
-    }
-    .tags {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 4px;
-    }
-    .tag {
-      border-radius: 5px;
-      padding: 2px 7px;
-      font-size: 10px;
-      font-weight: 600;
-      line-height: 1.4;
-    }
-    .tag-ar {
-      background: rgba(74,222,128,0.1);
-      color: #86efac;
-      border: 1px solid rgba(74,222,128,0.2);
-    }
-    .tag-en {
-      background: rgba(56,189,248,0.1);
-      color: #7dd3fc;
-      border: 1px solid rgba(56,189,248,0.2);
-    }
-
-    /* ── Button mapping grid ─────────────────── */
-    .btn-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
-    }
-    .btn-map {
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 13px 10px;
-      text-align: center;
-    }
-    .btn-label {
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
-      font-size: 10px;
-      font-weight: 700;
-      color: var(--muted);
-      text-transform: uppercase;
-      letter-spacing: 0.4px;
-      margin-bottom: 8px;
-    }
-    .btn-pill {
-      width: 18px;
-      height: 18px;
-      border-radius: 50%;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 9px;
-      font-weight: 800;
-      color: #fff;
-      flex-shrink: 0;
-    }
-    .btn-pill.right { background: #2563eb; }
-    .btn-pill.left  { background: #7c3aed; }
-    .btn-action-icon { font-size: 22px; margin-bottom: 5px; }
-    .btn-action-text {
+    .gesture-info { flex: 1; min-width: 0; }
+    .gesture-label {
       font-size: 12px;
+      color: var(--muted);
+      font-weight: 500;
+      margin-bottom: 2px;
+    }
+    .gesture-action {
+      font-size: 14px;
       font-weight: 600;
-      color: var(--text);
-      line-height: 1.3;
     }
 
-    /* ── Activity log ────────────────────────── */
+    /* ── Activity Log ────────────────── */
     .live-chip {
       display: inline-flex;
       align-items: center;
-      gap: 4px;
-      background: rgba(248,113,113,0.12);
-      color: #fca5a5;
-      border: 1px solid rgba(248,113,113,0.2);
+      gap: 5px;
+      background: rgba(52,211,153,0.1);
+      color: #6ee7b7;
+      border: 1px solid rgba(52,211,153,0.15);
       border-radius: 6px;
-      padding: 2px 7px;
+      padding: 2px 8px;
       font-size: 10px;
       font-weight: 700;
-      margin-right: auto;
+      margin-inline-start: auto;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
     }
-    [dir="rtl"] .live-chip { margin-right: 0; margin-left: auto; }
-    .live-chip .live-dot {
+    .live-dot {
       width: 5px;
       height: 5px;
       border-radius: 50%;
-      background: #f87171;
-      animation: pulse 1s ease-in-out infinite;
+      background: var(--green);
+      animation: pulse 1.5s ease-in-out infinite;
     }
     #activity-list {
       list-style: none;
       display: flex;
       flex-direction: column;
-      gap: 7px;
+      gap: 8px;
     }
     #activity-list li {
       display: flex;
       align-items: center;
       gap: 10px;
-      padding: 8px 10px;
+      padding: 10px 12px;
       background: var(--surface2);
       border: 1px solid var(--border);
-      border-radius: 9px;
+      border-radius: 10px;
     }
     .log-bullet {
-      width: 7px;
-      height: 7px;
+      width: 6px;
+      height: 6px;
       border-radius: 50%;
-      background: var(--accent2);
+      background: var(--accent);
       flex-shrink: 0;
     }
     .log-text {
@@ -339,352 +342,712 @@
     }
     .empty-msg {
       text-align: center;
-      padding: 24px 0;
+      padding: 28px 0;
       color: var(--muted);
     }
-    .empty-msg .empty-icon { font-size: 30px; margin-bottom: 8px; }
+    .empty-icon { font-size: 28px; margin-bottom: 10px; }
     .empty-msg p { font-size: 12px; }
+    .empty-hint { margin-top: 4px; font-size: 10px !important; opacity: 0.7; }
 
-    /* ── Footer ──────────────────────────────── */
-    footer {
-      text-align: center;
-      padding: 4px 16px 0;
-      font-size: 11px;
+    /* ── Face Contact List ──────────── */
+    .face-item {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 12px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+    }
+    .face-item:last-child { border-bottom: none; padding-bottom: 0; }
+    .face-item:first-child { padding-top: 0; }
+    .face-avatar {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: rgba(129,140,248,0.15);
+      border: 1px solid rgba(129,140,248,0.25);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 17px;
+      font-weight: 700;
+      flex-shrink: 0;
+      color: #a5b4fc;
+      overflow: hidden;
+    }
+    .face-avatar img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .face-info { flex: 1; min-width: 0; }
+    .face-name {
+      font-size: 14px;
+      font-weight: 600;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .face-edit-btn {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
+      padding: 6px 10px;
       color: var(--muted);
-      line-height: 1.7;
+      font-size: 13px;
+      cursor: pointer;
+      flex-shrink: 0;
+      font-family: var(--font);
+      transition: background 150ms var(--ease);
+    }
+    .face-edit-btn:hover { background: rgba(255,255,255,0.12); color: var(--text); }
+    .face-rename-input {
+      background: var(--surface2);
+      border: 1px solid var(--accent);
+      border-radius: 8px;
+      padding: 6px 10px;
+      color: var(--text);
+      font-size: 13px;
+      font-family: var(--font);
+      width: 100%;
+      outline: none;
     }
 
-    /* ── Animations ──────────────────────────── */
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(6px); }
+    /* ── Face Detail Modal ──────────── */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.85);
+      backdrop-filter: blur(12px);
+      z-index: 100;
+      justify-content: center;
+      align-items: center;
+      animation: modalFadeIn 0.2s ease;
+    }
+    .modal-overlay.open { display: flex; }
+    @keyframes modalFadeIn {
+      from { opacity: 0; }
+      to   { opacity: 1; }
+    }
+    .modal {
+      width: 100%;
+      max-width: 420px;
+      max-height: 90vh;
+      overflow-y: auto;
+      margin: 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      box-shadow: 0 24px 64px rgba(0,0,0,0.5);
+      animation: modalSlideUp 0.25s var(--ease);
+    }
+    @keyframes modalSlideUp {
+      from { opacity: 0; transform: translateY(40px); }
       to   { opacity: 1; transform: translateY(0); }
     }
-    .card, .stats-row { animation: fadeIn 0.35s ease both; }
+    .modal-close {
+      position: absolute;
+      top: 16px;
+      inset-inline-end: 16px;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.12);
+      color: var(--text);
+      font-size: 18px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 2;
+      font-family: var(--font);
+    }
+    .modal-close:hover { background: rgba(255,255,255,0.15); }
+    .modal-photo-wrap {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 1;
+      background: var(--surface2);
+      border-radius: 20px 20px 0 0;
+      overflow: hidden;
+      cursor: pointer;
+    }
+    .modal-photo-wrap img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .modal-photo-placeholder {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 80px;
+      font-weight: 800;
+      color: rgba(129,140,248,0.4);
+    }
+    .modal-body {
+      padding: 24px 20px;
+    }
+    .modal-name {
+      font-size: 22px;
+      font-weight: 800;
+      margin-bottom: 6px;
+    }
+    .modal-meta {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 20px;
+    }
+    .modal-actions {
+      display: flex;
+      gap: 10px;
+    }
+    .modal-btn {
+      flex: 1;
+      padding: 12px 16px;
+      border-radius: 12px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      color: var(--text);
+      font-family: var(--font);
+      transition: background 150ms var(--ease);
+    }
+    .modal-btn:hover { background: rgba(255,255,255,0.08); }
+    .modal-btn.primary {
+      background: rgba(56,189,248,0.15);
+      border-color: rgba(56,189,248,0.25);
+      color: var(--accent);
+    }
+    .modal-btn.primary:hover { background: rgba(56,189,248,0.25); }
+    .modal-btn.danger {
+      background: rgba(248,113,113,0.15);
+      border-color: rgba(248,113,113,0.25);
+      color: var(--red);
+    }
+    .modal-btn.danger:hover { background: rgba(248,113,113,0.25); }
+    .modal-rename-input {
+      width: 100%;
+      padding: 12px 14px;
+      border-radius: 12px;
+      background: var(--surface2);
+      border: 1px solid var(--accent);
+      color: var(--text);
+      font-size: 16px;
+      font-family: var(--font);
+      outline: none;
+      margin-bottom: 12px;
+    }
+
+    /* ── Fullscreen Photo Viewer ───── */
+    .photo-viewer {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: #000;
+      z-index: 200;
+      justify-content: center;
+      align-items: center;
+      cursor: zoom-out;
+    }
+    .photo-viewer.open { display: flex; }
+    .photo-viewer img {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+    }
+
+    /* ── Footer ──────────────────────── */
+    footer {
+      text-align: center;
+      padding: 8px 16px 0;
+      font-size: 11px;
+      color: var(--muted);
+      line-height: 1.8;
+      opacity: 0.7;
+    }
+
+    /* ── Animations ──────────────────── */
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .stats-row, .card { animation: fadeIn 0.3s ease both; }
     .stats-row { animation-delay: 0.05s; }
-    .card:nth-child(2) { animation-delay: 0.10s; }
-    .card:nth-child(3) { animation-delay: 0.15s; }
-    .card:nth-child(4) { animation-delay: 0.20s; }
-    .card:nth-child(5) { animation-delay: 0.25s; }
+    .card:nth-of-type(1) { animation-delay: 0.1s; }
+    .card:nth-of-type(2) { animation-delay: 0.15s; }
+    .card:nth-of-type(3) { animation-delay: 0.2s; }
+    .card:nth-of-type(4) { animation-delay: 0.25s; }
   </style>
 </head>
 <body>
 
-  <!-- ── Header ─────────────────────────────── -->
   <header>
+    <button class="lang-toggle" id="lang-toggle" onclick="toggleLanguage()"></button>
     <div class="app-logo">س</div>
-    <h1>سهيل</h1>
-    <p class="tagline">Suhail · مساعد ذكي للنظارات الذكية</p>
+    <h1 id="app-title"></h1>
+    <p class="tagline" id="tagline"></p>
     <div class="status-badge">
       <span class="dot" id="status-dot"></span>
-      <span id="status-label">جاري الاتصال...</span>
+      <span id="status-label"></span>
     </div>
   </header>
 
   <main>
-
-    <!-- ── Stats ──────────────────────────────── -->
     <div class="stats-row">
       <div class="stat-card">
-        <div class="stat-value" id="session-count">—</div>
-        <div class="stat-label">جلسات نشطة</div>
+        <div class="stat-value" id="session-count">&mdash;</div>
+        <div class="stat-label" id="stat-sessions-label"></div>
       </div>
       <div class="stat-card">
-        <div class="stat-value" id="uptime">—</div>
-        <div class="stat-label">وقت التشغيل</div>
+        <div class="stat-value" id="uptime">&mdash;</div>
+        <div class="stat-label" id="stat-uptime-label"></div>
       </div>
     </div>
 
-    <!-- ── Voice Commands ─────────────────────── -->
-    <div class="card">
-      <div class="card-title">
-        <span class="title-icon">🎙️</span>
-        الأوامر الصوتية
-        <span class="en-sub">Voice Commands</span>
-      </div>
+    <div class="card" id="commands-card"></div>
+    <div class="card" id="gestures-card"></div>
+    <div class="card" id="faces-card"></div>
+    <div class="card" id="activity-card"></div>
 
-      <div class="cmd-item">
-        <div class="cmd-icon" style="background:rgba(56,189,248,0.1)">📸</div>
-        <div class="cmd-info">
-          <div class="cmd-ar">وصف المشهد</div>
-          <div class="cmd-en">Describe Scene</div>
-          <div class="tags">
-            <span class="tag tag-ar">وصف</span>
-            <span class="tag tag-ar">حولي</span>
-            <span class="tag tag-ar">ايش حولي</span>
-            <span class="tag tag-en">describe</span>
-            <span class="tag tag-en">surroundings</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="cmd-item">
-        <div class="cmd-icon" style="background:rgba(129,140,248,0.1)">👤</div>
-        <div class="cmd-info">
-          <div class="cmd-ar">التعرف على الوجه</div>
-          <div class="cmd-en">Face Recognition</div>
-          <div class="tags">
-            <span class="tag tag-ar">من هذا</span>
-            <span class="tag tag-ar">من قدامي</span>
-            <span class="tag tag-en">who is this</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="cmd-item">
-        <div class="cmd-icon" style="background:rgba(74,222,128,0.1)">📖</div>
-        <div class="cmd-info">
-          <div class="cmd-ar">قراءة النص</div>
-          <div class="cmd-en">Read Text (OCR)</div>
-          <div class="tags">
-            <span class="tag tag-ar">اقرأ</span>
-            <span class="tag tag-ar">نص</span>
-            <span class="tag tag-en">read</span>
-            <span class="tag tag-en">text</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="cmd-item">
-        <div class="cmd-icon" style="background:rgba(251,191,36,0.1)">💰</div>
-        <div class="cmd-info">
-          <div class="cmd-ar">التعرف على العملة</div>
-          <div class="cmd-en">Currency Recognition</div>
-          <div class="tags">
-            <span class="tag tag-ar">فلوس</span>
-            <span class="tag tag-ar">عملة</span>
-            <span class="tag tag-en">money</span>
-            <span class="tag tag-en">currency</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="cmd-item">
-        <div class="cmd-icon" style="background:rgba(248,113,113,0.1)">🔍</div>
-        <div class="cmd-info">
-          <div class="cmd-ar">إيجاد الأشياء</div>
-          <div class="cmd-en">Find Object</div>
-          <div class="tags">
-            <span class="tag tag-ar">وين</span>
-            <span class="tag tag-ar">ابحث</span>
-            <span class="tag tag-en">find</span>
-            <span class="tag tag-en">where is</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="cmd-item">
-        <div class="cmd-icon" style="background:rgba(52,211,153,0.1)">🎨</div>
-        <div class="cmd-info">
-          <div class="cmd-ar">كشف اللون</div>
-          <div class="cmd-en">Detect Color</div>
-          <div class="tags">
-            <span class="tag tag-ar">لون</span>
-            <span class="tag tag-en">color</span>
-            <span class="tag tag-en">colour</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="cmd-item">
-        <div class="cmd-icon" style="background:rgba(251,191,36,0.1)">👥</div>
-        <div class="cmd-info">
-          <div class="cmd-ar">تسجيل وجه</div>
-          <div class="cmd-en">Enroll Face</div>
-          <div class="tags">
-            <span class="tag tag-ar">سجل</span>
-            <span class="tag tag-ar">احفظ</span>
-            <span class="tag tag-en">enroll</span>
-            <span class="tag tag-en">save face</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="cmd-item">
-        <div class="cmd-icon" style="background:rgba(129,140,248,0.1)">💬</div>
-        <div class="cmd-info">
-          <div class="cmd-ar">سؤال بصري</div>
-          <div class="cmd-en">Visual Q&amp;A</div>
-          <div class="tags">
-            <span class="tag tag-ar">أي سؤال آخر</span>
-            <span class="tag tag-en">any question</span>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ── Button Mappings ────────────────────── -->
-    <div class="card">
-      <div class="card-title">
-        <span class="title-icon">🔘</span>
-        أزرار النظارات
-        <span class="en-sub">Glasses Buttons</span>
-      </div>
-      <div class="btn-grid">
-
-        <div class="btn-map">
-          <div class="btn-label">
-            <span class="btn-pill right">R</span>
-            ضغطة قصيرة
-          </div>
-          <div class="btn-action-icon">📸</div>
-          <div class="btn-action-text">وصف المشهد</div>
-        </div>
-
-        <div class="btn-map">
-          <div class="btn-label">
-            <span class="btn-pill right">R</span>
-            ضغطة طويلة
-          </div>
-          <div class="btn-action-icon">👤</div>
-          <div class="btn-action-text">التعرف على الوجه</div>
-        </div>
-
-        <div class="btn-map">
-          <div class="btn-label">
-            <span class="btn-pill left">L</span>
-            ضغطة قصيرة
-          </div>
-          <div class="btn-action-icon">📖</div>
-          <div class="btn-action-text">قراءة النص</div>
-        </div>
-
-        <div class="btn-map">
-          <div class="btn-label">
-            <span class="btn-pill left">L</span>
-            ضغطة طويلة
-          </div>
-          <div class="btn-action-icon">🔁</div>
-          <div class="btn-action-text">إعادة آخر رد</div>
-        </div>
-
-      </div>
-    </div>
-
-    <!-- ── Activity Log ───────────────────────── -->
-    <div class="card">
-      <div class="card-title">
-        <span class="title-icon">📋</span>
-        النشاط الأخير
-        <span class="live-chip">
-          <span class="live-dot"></span>
-          مباشر
-        </span>
-      </div>
-      <ul id="activity-list">
-        <li style="border:none;background:transparent;justify-content:center">
-          <div class="empty-msg">
-            <div class="empty-icon">📡</div>
-            <p>لا توجد نشاطات بعد</p>
-            <p style="margin-top:4px;font-size:10px">انتظر اتصال النظارات</p>
-          </div>
-        </li>
-      </ul>
-    </div>
-
-    <!-- ── Footer ─────────────────────────────── -->
-    <footer>
-      مشروع تخرج SWE 496 · كلية علوم الحاسب والمعلومات<br>
-      جامعة الملك سعود · 2024-2025
-    </footer>
-
+    <footer id="footer"></footer>
   </main>
 
+  <!-- Face Detail Modal -->
+  <div class="modal-overlay" id="face-modal" onclick="if(event.target===this)closeModal()">
+    <div class="modal">
+      <button class="modal-close" onclick="closeModal()">&times;</button>
+      <div class="modal-photo-wrap" id="modal-photo-wrap"></div>
+      <div class="modal-body">
+        <div class="modal-name" id="modal-name"></div>
+        <div class="modal-meta" id="modal-meta"></div>
+        <div id="modal-actions"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Fullscreen Photo Viewer -->
+  <div class="photo-viewer" id="photo-viewer" onclick="closePhotoViewer()">
+    <img id="photo-viewer-img" src="" alt="">
+  </div>
+
   <script>
-    const STATUS_URL   = '/api/status';
-    const ACTIVITY_URL = '/api/activity';
-    const POLL_MS      = 5000;
+    /* ── Bilingual Strings ──────────────────────────── */
+    var STRINGS = {
+      title:       { en: "Suhail",  ar: "سهيل" },
+      tagline:     { en: "AI assistant for smart glasses", ar: "مساعد ذكي للنظارات الذكية" },
+      connecting:  { en: "Connecting\u2026", ar: "جاري الاتصال\u2026" },
+      online:      { en: "Online",   ar: "متصل" },
+      offline:     { en: "Offline",  ar: "غير متصل" },
+      sessions:    { en: "Active Sessions", ar: "جلسات نشطة" },
+      uptime:      { en: "Uptime",   ar: "وقت التشغيل" },
+      voiceCmds:   { en: "Voice Commands", ar: "الأوامر الصوتية" },
+      gestures:    { en: "Gestures & Buttons", ar: "الإيماءات والأزرار" },
+      activity:    { en: "Recent Activity", ar: "النشاط الأخير" },
+      live:        { en: "LIVE",     ar: "مباشر" },
+      empty:       { en: "No activity yet", ar: "لا توجد نشاطات بعد" },
+      emptyHint:   { en: "Waiting for glasses to connect", ar: "بانتظار اتصال النظارات" },
+      now:         { en: "now",  ar: "الآن" },
+      secSuffix:   { en: "s",   ar: " ث" },
+      minSuffix:   { en: "m",   ar: " د" },
+      hourSuffix:  { en: "h",   ar: " س" },
+      keyword:     { en: "Say:",  ar: "قل:" },
+      fallbackDesc:{ en: "Ask any question not matched above", ar: "اطرح أي سؤال غير مطابق أعلاه" },
+      faces:       { en: "Face Contact Book", ar: "دفتر الوجوه" },
+      facesEmpty:  { en: "No faces enrolled yet", ar: "لا يوجد وجوه مسجلة بعد" },
+      facesHint:   { en: "Say \"Enroll\" to add a face", ar: "قل \"سجّل\" لإضافة وجه" },
+      facesEdit:   { en: "Edit", ar: "تعديل" },
+      facesRename: { en: "Rename", ar: "إعادة تسمية" },
+      facesSave:   { en: "Save", ar: "حفظ" },
+      facesCancel: { en: "Cancel", ar: "إلغاء" },
+      facesEnrolled: { en: "Enrolled", ar: "تم التسجيل" },
+      facesNoPhoto:  { en: "No photo available", ar: "لا توجد صورة" },
+      facesDelete:   { en: "Delete", ar: "حذف" },
+      facesDeleteConfirm: { en: "Are you sure you want to delete this contact?", ar: "هل أنت متأكد من حذف جهة الاتصال هذه؟" },
+      toggleLabel: { en: "العربية", ar: "English" },
+      footerL1:    { en: "Graduation Project SWE 496 \u2014 College of Computer & Information Sciences", ar: "مشروع تخرج SWE 496 · كلية علوم الحاسب والمعلومات" },
+      footerL2:    { en: "King Saud University \u2014 2024\u20132025", ar: "جامعة الملك سعود · 2024\u20132025" },
+    };
+
+    var COMMANDS = [
+      { icon: "\uD83D\uDCF8", bg: "rgba(56,189,248,0.1)",  name: { en: "Describe Scene",       ar: "وصف المشهد" },          kw: { en: "describe", ar: "وصف" } },
+      { icon: "\uD83D\uDCD6", bg: "rgba(74,222,128,0.1)",   name: { en: "Read Text (OCR)",      ar: "قراءة النص" },           kw: { en: "read",     ar: "اقرأ" } },
+      { icon: "\uD83D\uDC64", bg: "rgba(129,140,248,0.1)",  name: { en: "Recognize Face",       ar: "التعرف على الوجه" },     kw: { en: "who",      ar: "من" } },
+      { icon: "\uD83D\uDC65", bg: "rgba(251,191,36,0.1)",   name: { en: "Enroll Face",          ar: "تسجيل وجه" },            kw: { en: "enroll",   ar: "سجل" } },
+      { icon: "\uD83D\uDD0D", bg: "rgba(248,113,113,0.1)",  name: { en: "Find Object",          ar: "إيجاد شيء" },            kw: { en: "find",     ar: "وين" } },
+      { icon: "\uD83D\uDCB0", bg: "rgba(251,191,36,0.1)",   name: { en: "Recognize Currency",   ar: "التعرف على العملة" },    kw: { en: "money",    ar: "فلوس" } },
+      { icon: "\uD83C\uDFA8", bg: "rgba(52,211,153,0.1)",   name: { en: "Detect Color",         ar: "كشف اللون" },            kw: { en: "color",    ar: "لون" } },
+      { icon: "\uD83D\uDCAC", bg: "rgba(129,140,248,0.1)",  name: { en: "Visual Q&A",           ar: "سؤال بصري" },            kw: null },
+    ];
+
+    var GESTURES = [
+      { icon: "\uD83D\uDC46", label: { en: "Swipe Forward",         ar: "سحب للأمام" },             action: { en: "Activate Listening", ar: "تفعيل الاستماع" } },
+      { icon: "\uD83D\uDC47", label: { en: "Swipe Backward",        ar: "سحب للخلف" },              action: { en: "Repeat Last Response", ar: "إعادة آخر رد" } },
+      { icon: "\uD83D\uDD18", label: { en: "Left \u2014 Short Press",  ar: "يسار \u2014 ضغطة قصيرة" }, action: { en: "Activate Listening", ar: "تفعيل الاستماع" } },
+      { icon: "\uD83D\uDD18", label: { en: "Left \u2014 Long Press",   ar: "يسار \u2014 ضغطة طويلة" }, action: { en: "Repeat Last Response", ar: "إعادة آخر رد" } },
+    ];
+
+    /* ── Language State ─────────────────────────────── */
+    var currentLang = localStorage.getItem("suhail-lang") || "en";
+
+    function t(obj) { return obj[currentLang]; }
+
+    function setLanguage(lang) {
+      currentLang = lang;
+      localStorage.setItem("suhail-lang", lang);
+      var html = document.documentElement;
+      html.lang = lang;
+      html.dir = lang === "ar" ? "rtl" : "ltr";
+      document.title = t(STRINGS.title) + " \u2014 " + t(STRINGS.tagline);
+      renderAll();
+    }
+
+    function toggleLanguage() {
+      setLanguage(currentLang === "en" ? "ar" : "en");
+    }
+
+    /* ── Rendering ──────────────────────────────────── */
+    function renderAll() {
+      // Header
+      document.getElementById("lang-toggle").textContent = t(STRINGS.toggleLabel);
+      document.getElementById("app-title").textContent = t(STRINGS.title);
+      document.getElementById("tagline").textContent = t(STRINGS.tagline);
+      document.getElementById("status-label").textContent = t(STRINGS.connecting);
+      document.getElementById("stat-sessions-label").textContent = t(STRINGS.sessions);
+      document.getElementById("stat-uptime-label").textContent = t(STRINGS.uptime);
+
+      renderCommands();
+      renderGestures();
+      renderFaces([]);
+      renderActivityUI();
+      renderFooter();
+
+      // Re-fetch to update status text
+      fetchStatus();
+      fetchActivity();
+      fetchFaces();
+    }
+
+    function renderCommands() {
+      var html = '<div class="card-title"><span class="title-icon">\uD83C\uDF99\uFE0F</span>' + t(STRINGS.voiceCmds) + '</div>';
+      COMMANDS.forEach(function(cmd) {
+        var kwHtml = '';
+        if (cmd.kw) {
+          kwHtml = '<div class="tags"><span class="tag">' + t(STRINGS.keyword) + ' "' + esc(t(cmd.kw)) + '"</span></div>';
+        } else {
+          kwHtml = '<div class="tags"><span class="tag fallback">' + t(STRINGS.fallbackDesc) + '</span></div>';
+        }
+        html += '<div class="cmd-item">'
+          + '<div class="cmd-icon" style="background:' + cmd.bg + '">' + cmd.icon + '</div>'
+          + '<div class="cmd-info">'
+          + '<div class="cmd-name">' + esc(t(cmd.name)) + '</div>'
+          + kwHtml
+          + '</div></div>';
+      });
+      document.getElementById("commands-card").innerHTML = html;
+    }
+
+    function renderGestures() {
+      var html = '<div class="card-title"><span class="title-icon">\uD83D\uDD18</span>' + t(STRINGS.gestures) + '</div>';
+      GESTURES.forEach(function(g) {
+        html += '<div class="gesture-item">'
+          + '<div class="gesture-icon">' + g.icon + '</div>'
+          + '<div class="gesture-info">'
+          + '<div class="gesture-label">' + esc(t(g.label)) + '</div>'
+          + '<div class="gesture-action">' + esc(t(g.action)) + '</div>'
+          + '</div></div>';
+      });
+      document.getElementById("gestures-card").innerHTML = html;
+    }
+
+    function renderActivityUI() {
+      var html = '<div class="card-title"><span class="title-icon">\uD83D\uDCCB</span>'
+        + t(STRINGS.activity)
+        + '<span class="live-chip"><span class="live-dot"></span>' + t(STRINGS.live) + '</span>'
+        + '</div><ul id="activity-list"></ul>';
+      document.getElementById("activity-card").innerHTML = html;
+    }
+
+    function renderFooter() {
+      document.getElementById("footer").innerHTML = esc(t(STRINGS.footerL1)) + '<br>' + esc(t(STRINGS.footerL2));
+    }
+
+    /* ── Escape HTML ────────────────────────────────── */
+    function esc(s) {
+      var d = document.createElement("div");
+      d.textContent = s;
+      return d.innerHTML;
+    }
+
+    /* ── Data Fetching ──────────────────────────────── */
+    var POLL_MS = 5000;
 
     function formatUptime(secs) {
-      const h = Math.floor(secs / 3600);
-      const m = Math.floor((secs % 3600) / 60);
-      const s = secs % 60;
-      if (h > 0) return h + ':' + String(m).padStart(2,'0') + 'س';
-      return String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+      var h = Math.floor(secs / 3600);
+      var m = Math.floor((secs % 3600) / 60);
+      var s = secs % 60;
+      if (h > 0) return h + ":" + String(m).padStart(2, "0") + t(STRINGS.hourSuffix);
+      return String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
     }
 
     function timeAgo(iso) {
-      const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
-      if (diff < 5)    return 'الآن';
-      if (diff < 60)   return diff + ' ث';
-      if (diff < 3600) return Math.floor(diff / 60) + ' د';
-      return Math.floor(diff / 3600) + ' س';
+      var diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+      if (diff < 5)    return t(STRINGS.now);
+      if (diff < 60)   return diff + t(STRINGS.secSuffix);
+      if (diff < 3600) return Math.floor(diff / 60) + t(STRINGS.minSuffix);
+      return Math.floor(diff / 3600) + t(STRINGS.hourSuffix);
     }
 
-    async function fetchStatus() {
-      try {
-        const r = await fetch(STATUS_URL);
+    function fetchStatus() {
+      fetch("/api/status").then(function(r) {
         if (!r.ok) throw new Error();
-        const d = await r.json();
-
-        document.getElementById('status-dot').className   = 'dot online';
-        document.getElementById('status-label').textContent = 'متصل';
-        document.getElementById('session-count').textContent = String(d.sessions ?? 0);
-        document.getElementById('uptime').textContent       = formatUptime(d.uptime ?? 0);
-      } catch {
-        document.getElementById('status-dot').className   = 'dot offline';
-        document.getElementById('status-label').textContent = 'غير متصل';
-        document.getElementById('session-count').textContent = '—';
-        document.getElementById('uptime').textContent       = '—';
-      }
+        return r.json();
+      }).then(function(d) {
+        document.getElementById("status-dot").className = "dot online";
+        document.getElementById("status-label").textContent = t(STRINGS.online);
+        document.getElementById("session-count").textContent = String(d.sessions || 0);
+        document.getElementById("uptime").textContent = formatUptime(d.uptime || 0);
+      }).catch(function() {
+        document.getElementById("status-dot").className = "dot offline";
+        document.getElementById("status-label").textContent = t(STRINGS.offline);
+        document.getElementById("session-count").textContent = "\u2014";
+        document.getElementById("uptime").textContent = "\u2014";
+      });
     }
 
-    async function fetchActivity() {
-      try {
-        const r = await fetch(ACTIVITY_URL);
+    function fetchActivity() {
+      fetch("/api/activity").then(function(r) {
         if (!r.ok) throw new Error();
-        const events = await r.json();
-
-        const list = document.getElementById('activity-list');
-        list.innerHTML = '';
+        return r.json();
+      }).then(function(events) {
+        var list = document.getElementById("activity-list");
+        if (!list) return;
+        list.innerHTML = "";
 
         if (!events.length) {
-          const li = document.createElement('li');
-          li.style.cssText = 'border:none;background:transparent;justify-content:center';
-          const div = document.createElement('div');
-          div.className = 'empty-msg';
-          const icon = document.createElement('div');
-          icon.className = 'empty-icon';
-          icon.textContent = '📡';
-          const p1 = document.createElement('p');
-          p1.textContent = 'لا توجد نشاطات بعد';
-          const p2 = document.createElement('p');
-          p2.style.cssText = 'margin-top:4px;font-size:10px';
-          p2.textContent = 'انتظر اتصال النظارات';
-          div.appendChild(icon); div.appendChild(p1); div.appendChild(p2);
-          li.appendChild(div);
+          var li = document.createElement("li");
+          li.style.cssText = "border:none;background:transparent;justify-content:center";
+          li.innerHTML = '<div class="empty-msg"><div class="empty-icon">\uD83D\uDCE1</div>'
+            + '<p>' + esc(t(STRINGS.empty)) + '</p>'
+            + '<p class="empty-hint">' + esc(t(STRINGS.emptyHint)) + '</p></div>';
           list.appendChild(li);
           return;
         }
 
-        // Show last 10, most-recent first
-        const recent = events.slice(-10).reverse();
+        var recent = events.slice(-10).reverse();
         recent.forEach(function(entry) {
-          const li     = document.createElement('li');
-          const bullet = document.createElement('span');
-          bullet.className = 'log-bullet';
-          const txt  = document.createElement('span');
-          txt.className = 'log-text';
-          txt.textContent = entry.event;   // textContent — XSS safe
-          const time = document.createElement('span');
-          time.className = 'log-time';
+          var li     = document.createElement("li");
+          var bullet = document.createElement("span");
+          bullet.className = "log-bullet";
+          var txt = document.createElement("span");
+          txt.className = "log-text";
+          txt.textContent = entry.event;
+          var time = document.createElement("span");
+          time.className = "log-time";
           time.textContent = timeAgo(entry.time);
           li.appendChild(bullet);
           li.appendChild(txt);
           li.appendChild(time);
           list.appendChild(li);
         });
-      } catch {
-        // silently ignore on network error
-      }
+      }).catch(function() {});
     }
 
-    // Initial load
-    fetchStatus();
-    fetchActivity();
+    /* ── Face Contact Book ──────────────────────────── */
+    var cachedFaces = [];
+    var currentModalFace = null;
 
-    // Poll
+    function renderFaces(faces) {
+      cachedFaces = faces || [];
+      var html = '<div class="card-title"><span class="title-icon">\uD83D\uDC64</span>' + t(STRINGS.faces) + '</div>';
+
+      if (!cachedFaces.length) {
+        html += '<div class="empty-msg"><div class="empty-icon">\uD83D\uDC65</div>'
+          + '<p>' + esc(t(STRINGS.facesEmpty)) + '</p>'
+          + '<p class="empty-hint">' + esc(t(STRINGS.facesHint)) + '</p></div>';
+      } else {
+        // Deduplicate by name
+        var seen = {};
+        var unique = [];
+        cachedFaces.forEach(function(f) {
+          if (!seen[f.name]) {
+            seen[f.name] = true;
+            unique.push(f);
+          }
+        });
+
+        unique.forEach(function(f, i) {
+          var initial = f.name.charAt(0).toUpperCase();
+          var avatarContent = f.hasPhoto
+            ? '<img src="/api/faces/' + encodeURIComponent(f.faceId) + '/photo" alt="' + esc(f.name) + '">'
+            : esc(initial);
+
+          html += '<div class="face-item" style="cursor:pointer" onclick="openFaceModal(\'' + esc(f.faceId) + '\')">'
+            + '<div class="face-avatar">' + avatarContent + '</div>'
+            + '<div class="face-info">'
+            + '<div class="face-name">' + esc(f.name) + '</div>'
+            + '</div>'
+            + '</div>';
+        });
+      }
+
+      document.getElementById("faces-card").innerHTML = html;
+    }
+
+    /* ── Face Detail Modal ──────────────────────────── */
+    function findFace(faceId) {
+      for (var i = 0; i < cachedFaces.length; i++) {
+        if (cachedFaces[i].faceId === faceId) return cachedFaces[i];
+      }
+      return null;
+    }
+
+    function openFaceModal(faceId) {
+      var face = findFace(faceId);
+      if (!face) return;
+      currentModalFace = face;
+
+      var photoWrap = document.getElementById("modal-photo-wrap");
+      if (face.hasPhoto) {
+        var photoUrl = "/api/faces/" + encodeURIComponent(face.faceId) + "/photo";
+        photoWrap.innerHTML = '<img src="' + photoUrl + '" alt="' + esc(face.name) + '">';
+        photoWrap.onclick = function() { openPhotoViewer(photoUrl); };
+        photoWrap.style.cursor = "zoom-in";
+      } else {
+        var initial = face.name.charAt(0).toUpperCase();
+        photoWrap.innerHTML = '<div class="modal-photo-placeholder">' + esc(initial) + '</div>';
+        photoWrap.onclick = null;
+        photoWrap.style.cursor = "default";
+      }
+
+      document.getElementById("modal-name").textContent = face.name;
+      document.getElementById("modal-meta").textContent = t(STRINGS.facesEnrolled);
+      renderModalActions(face);
+
+      document.getElementById("face-modal").classList.add("open");
+    }
+
+    function renderModalActions(face) {
+      document.getElementById("modal-actions").innerHTML =
+        '<div class="modal-actions">'
+        + '<button class="modal-btn primary" onclick="startModalRename()">' + esc(t(STRINGS.facesRename)) + '</button>'
+        + '<button class="modal-btn danger" onclick="deleteFaceContact()">' + esc(t(STRINGS.facesDelete)) + '</button>'
+        + '</div>';
+    }
+
+    function startModalRename() {
+      if (!currentModalFace) return;
+      var actionsDiv = document.getElementById("modal-actions");
+      actionsDiv.innerHTML =
+        '<input class="modal-rename-input" id="modal-rename-input" value="' + esc(currentModalFace.name) + '" />'
+        + '<div class="modal-actions">'
+        + '<button class="modal-btn" onclick="cancelModalRename()">' + esc(t(STRINGS.facesCancel)) + '</button>'
+        + '<button class="modal-btn primary" onclick="submitModalRename()">' + esc(t(STRINGS.facesSave)) + '</button>'
+        + '</div>';
+      var input = document.getElementById("modal-rename-input");
+      input.focus();
+      input.select();
+      input.addEventListener("keydown", function(e) {
+        if (e.key === "Enter") submitModalRename();
+        if (e.key === "Escape") cancelModalRename();
+      });
+    }
+
+    function cancelModalRename() {
+      if (currentModalFace) renderModalActions(currentModalFace);
+    }
+
+    function submitModalRename() {
+      if (!currentModalFace) return;
+      var input = document.getElementById("modal-rename-input");
+      var newName = input.value.trim();
+      if (!newName) return;
+
+      fetch("/api/faces/" + encodeURIComponent(currentModalFace.faceId), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newName }),
+      }).then(function(r) {
+        if (!r.ok) throw new Error();
+        return fetchFaces();
+      }).then(function() {
+        // Update modal with new data
+        var updated = findFace(currentModalFace.faceId);
+        if (updated) {
+          document.getElementById("modal-name").textContent = updated.name;
+          currentModalFace = updated;
+          renderModalActions(updated);
+        }
+      }).catch(function() {
+        fetchFaces();
+        cancelModalRename();
+      });
+    }
+
+    function deleteFaceContact() {
+      if (!currentModalFace) return;
+      if (!confirm(t(STRINGS.facesDeleteConfirm))) return;
+
+      fetch("/api/faces/" + encodeURIComponent(currentModalFace.faceId), {
+        method: "DELETE",
+      }).then(function(r) {
+        if (!r.ok) throw new Error();
+        closeModal();
+        fetchFaces();
+      }).catch(function() {
+        closeModal();
+        fetchFaces();
+      });
+    }
+
+    function closeModal() {
+      document.getElementById("face-modal").classList.remove("open");
+      currentModalFace = null;
+    }
+
+    /* ── Fullscreen Photo Viewer ─────────────────────── */
+    function openPhotoViewer(url) {
+      document.getElementById("photo-viewer-img").src = url;
+      document.getElementById("photo-viewer").classList.add("open");
+    }
+
+    function closePhotoViewer() {
+      document.getElementById("photo-viewer").classList.remove("open");
+      document.getElementById("photo-viewer-img").src = "";
+    }
+
+    // Close modal/viewer on Escape key
+    document.addEventListener("keydown", function(e) {
+      if (e.key === "Escape") {
+        if (document.getElementById("photo-viewer").classList.contains("open")) {
+          closePhotoViewer();
+        } else if (document.getElementById("face-modal").classList.contains("open")) {
+          closeModal();
+        }
+      }
+    });
+
+    function fetchFaces() {
+      return fetch("/api/faces").then(function(r) {
+        if (!r.ok) throw new Error();
+        return r.json();
+      }).then(function(data) {
+        renderFaces(data.faces || []);
+      }).catch(function() {
+        renderFaces([]);
+      });
+    }
+
+    /* ── Init ───────────────────────────────────────── */
+    setLanguage(currentLang);
     setInterval(fetchStatus,   POLL_MS);
     setInterval(fetchActivity, POLL_MS);
+    setInterval(fetchFaces, 30000);
   </script>
 </body>
 </html>

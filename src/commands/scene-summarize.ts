@@ -13,13 +13,12 @@ const ai = new AIHandler();
  * Captures a photo and describes the user's surroundings.
  */
 export class SceneSummarizeCommand implements CommandHandler {
-  async execute(session: AppSession): Promise<void> {
+  async execute(session: AppSession, params?: Record<string, string>): Promise<void> {
     logger.info("Executing scene summarization...");
+    const sessionId = params?._sessionId;
 
     try {
-      await speakBilingual(session, messages.processing);
-
-      const photo = await capturePhoto(session);
+      const photo = params?._preCapture || await capturePhoto(session);
       if (!photo) {
         await speakBilingual(session, messages.cameraError);
         return;
@@ -28,10 +27,10 @@ export class SceneSummarizeCommand implements CommandHandler {
       const result = await ai.describeScene(photo);
       logger.info(`Scene description (confidence: ${result.confidence}): ${result.description}`);
 
-      await speak(session, result.description);
+      await speak(session, result.description, sessionId);
     } catch (error) {
       logger.error("Scene summarization failed:", error);
-      await speakBilingual(session, messages.generalError);
+      await speakBilingual(session, messages.generalError, sessionId);
     }
   }
 }

@@ -14,8 +14,9 @@ The project runs in two environments:
 
 ### Local Development
 - Run the server locally with `bun run dev` (auto-restart) or `bun run start`
-- Expose the local server to the internet with `ngrok http 3000`
-- Copy the ngrok HTTPS URL into the Mentra Developer Console as the webhook URL
+- Expose the local server to the internet with `ngrok http 3000 --url=unplummeted-teddy-extractable.ngrok-free.dev`
+- Static ngrok URL: `https://unplummeted-teddy-extractable.ngrok-free.dev`
+- This URL is set in the Mentra Developer Console as the webhook URL
 - Use `.env` file for environment variables
 - Good for rapid iteration and debugging
 
@@ -43,7 +44,7 @@ Mentra Live is one of several glasses models supported by MentraOS. Here's what 
 | Camera | 1080p (photo + video streaming) | `session.camera` |
 | Microphone | Yes (with Voice Activity Detection) | `session.events.onTranscription()` |
 | Speaker | Yes | `session.audio.speak()` |
-| Buttons | 1 physical button (camera button) | Short press + long press |
+| Buttons | 2 physical buttons (left + right/camera) + swipe pad | Short press + long press each |
 | LEDs | RGB + White | `session.led` |
 | WiFi | Yes | |
 | Display | **No** | `session.layouts` has no effect |
@@ -69,7 +70,9 @@ Mentra Live Glasses <-> User's Phone (Mentra App) <-> MentraOS Cloud (WebSocket)
 7. `onStop(sessionId, userId, reason)` is called (session object is NOT available here)
 
 ### Voice Commands — How They Work
-There is **no built-in wake word or command system** from Mentra. The SDK gives you **raw transcription text** via `session.events.onTranscription()`. Your app is responsible for parsing commands from that text. The Suhail app uses keyword matching in `command-router.ts` — this is the standard pattern. Users do NOT need to press a button to issue commands; they just speak and the mic is always listening.
+There is **no built-in wake word or command system** from Mentra. The SDK gives you **raw transcription text** via `session.events.onTranscription()`. Your app is responsible for parsing commands from that text. The Suhail app uses keyword matching in `command-router.ts` — this is the standard pattern.
+
+**Swipe-to-command:** The user swipes **forward** on the swipe pad to activate a ~10 second listening window. The next voice transcription is processed as a command without needing a wake word. Swiping **backward** repeats the last response. The left button also works as a fallback (short press = listen, long press = repeat). This prevents accidental triggers from background conversation and is more reliable than speech-based wake words.
 
 ## MentraOS SDK Reference
 
@@ -132,9 +135,9 @@ session.events.onTranscription((data: TranscriptionData) => {
   // data.timestamp  — Date
 });
 
-// Button press (Mentra Live has 1 button — the camera button)
+// Button press (Mentra Live has 2 buttons: "left" and "right"/"camera")
 session.events.onButtonPress((data: ButtonPress) => {
-  // data.buttonId  — string (verify actual values from your glasses)
+  // data.buttonId  — "left" or "right" (also "camera" as alias for "right")
   // data.pressType — "short" or "long"
 });
 
@@ -417,12 +420,18 @@ User speaks -> Mentra glasses mic -> MentraOS STT -> onTranscription(data)
 
 ### Request Flow (Button Press)
 
-Mentra Live has **1 physical button** (the camera button). The actual `buttonId` values should be verified against your hardware. The current code maps button presses to shortcuts for common commands:
+Mentra Live has **2 physical buttons** ("left" and "right"/"camera") plus a swipe pad. Gesture/button mappings:
+
+- **Forward swipe** → Activate listening mode (~10s window for next voice command)
+- **Backward swipe** → Repeat last response
+- **Left short press** → Activate listening mode (fallback)
+- **Left long press** → Repeat last response (fallback)
+- **Right/camera button** → Reserved (triggers native camera hardware)
 
 ```
-User presses button -> onButtonPress(event)
-  -> event.buttonId + event.pressType
-  -> Route to a command handler (configurable in app.ts)
+User swipes forward on swipe pad -> onTouchEvent(event)
+  -> gesture_name="forward_swipe" -> activate listening mode
+  -> next transcription is processed as a command (no wake word needed)
 ```
 
 ### Command Handler Pattern
@@ -455,7 +464,7 @@ The state machine lives in `FaceEnrollCommand.pendingEnrollments: Map<sessionId,
 
 ## Voice Command Routing (command-router.ts)
 
-The router uses **keyword matching** (case-insensitive). Routes are checked in order — first match wins. No button press is required — users just speak naturally and the mic is always listening.
+The router uses **keyword matching** (case-insensitive). Routes are checked in order — first match wins. The user must first activate listening mode by pressing the left button, then speak their command within the ~10 second window.
 
 | Priority | Command | Keywords (any match) | Notes |
 |----------|---------|---------------------|-------|
@@ -575,6 +584,7 @@ Each of these is marked with `// TODO` comments in the service files:
 8. **Use the Logger** — `new Logger("TagName")` for consistent `[TagName]` prefixed logging
 9. **Use capturePhoto()** from `utils/image-utils.ts` — it handles the SDK's `requestPhoto()`, Buffer->base64 conversion, and error handling
 10. **Keep it simple** — this is a graduation project. No over-engineering.
+11. **Keep `.env.example` up to date** — whenever you add, remove, or rename an environment variable in `config.ts` or anywhere in the codebase, update `.env.example` to reflect the change. This file is how teammates know which env vars they need.
 
 ## Adding a New Command
 

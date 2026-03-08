@@ -39,8 +39,10 @@ export function getMimeType(base64: string): string {
  */
 export async function capturePhoto(session: AppSession): Promise<string | null> {
   try {
-    logger.info("Capturing photo from glasses camera...");
-    const photoData = await session.camera.requestPhoto();
+    const size = "full";
+    const compress = "none";
+    logger.info(`Capturing photo from glasses camera (size=${size}, compress=${compress})...`);
+    const photoData = await session.camera.requestPhoto({ size, compress });
     if (!photoData || !photoData.buffer) {
       logger.warn("Captured photo is invalid or empty");
       return null;

@@ -13,13 +13,12 @@ const ai = new AIHandler();
  * Captures a photo and identifies the dominant color in the center region.
  */
 export class ColorDetectCommand implements CommandHandler {
-  async execute(session: AppSession): Promise<void> {
+  async execute(session: AppSession, params?: Record<string, string>): Promise<void> {
     logger.info("Executing color detection...");
+    const sessionId = params?._sessionId;
 
     try {
-      await speakBilingual(session, messages.processing);
-
-      const photo = await capturePhoto(session);
+      const photo = params?._preCapture || await capturePhoto(session);
       if (!photo) {
         await speakBilingual(session, messages.cameraError);
         return;
@@ -31,10 +30,10 @@ export class ColorDetectCommand implements CommandHandler {
       await speakBilingual(session, {
         ar: `اللون هو ${result.colorName}`,
         en: `The color is ${result.colorName}`,
-      });
+      }, sessionId);
     } catch (error) {
       logger.error("Color detection failed:", error);
-      await speakBilingual(session, messages.generalError);
+      await speakBilingual(session, messages.generalError, sessionId);
     }
   }
 }

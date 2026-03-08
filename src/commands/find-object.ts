@@ -15,15 +15,11 @@ const ai = new AIHandler();
 export class FindObjectCommand implements CommandHandler {
   async execute(session: AppSession, params?: Record<string, string>): Promise<void> {
     const objectName = params?.objectName || "object";
+    const sessionId = params?._sessionId;
     logger.info(`Executing find object: "${objectName}"...`);
 
     try {
-      await speakBilingual(session, {
-        ar: `جاري البحث عن ${objectName}...`,
-        en: `Looking for ${objectName}...`,
-      });
-
-      const photo = await capturePhoto(session);
+      const photo = params?._preCapture || await capturePhoto(session);
       if (!photo) {
         await speakBilingual(session, messages.cameraError);
         return;
@@ -33,19 +29,17 @@ export class FindObjectCommand implements CommandHandler {
       logger.info(`Object detection result: found=${result.found}, location=${result.location}`);
 
       if (result.found) {
-        await speakBilingual(session, {
-          ar: `${objectName} موجود ${result.location}`,
-          en: `${objectName} is ${result.location}`,
-        });
+        // The location already contains a full spatial description from the vision model
+        await speak(session, result.location, sessionId);
       } else {
         await speakBilingual(session, {
           ar: `ما قدرت ألاقي ${objectName} في الصورة.`,
           en: `I couldn't find ${objectName} in the image.`,
-        });
+        }, sessionId);
       }
     } catch (error) {
       logger.error("Find object failed:", error);
-      await speakBilingual(session, messages.generalError);
+      await speakBilingual(session, messages.generalError, sessionId);
     }
   }
 }

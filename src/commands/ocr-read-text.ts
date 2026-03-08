@@ -13,33 +13,39 @@ const ai = new AIHandler();
  * Captures a photo and extracts text using OCR.
  */
 export class OcrReadTextCommand implements CommandHandler {
-  async execute(session: AppSession): Promise<void> {
+  async execute(
+    session: AppSession,
+    params?: Record<string, string>,
+  ): Promise<void> {
     logger.info("Executing OCR text reading...");
+    const sessionId = params?._sessionId;
 
     try {
-      await speakBilingual(session, messages.processing);
-
-      const photo = await capturePhoto(session);
+      const photo = params?._preCapture || await capturePhoto(session);
       if (!photo) {
         await speakBilingual(session, messages.cameraError);
         return;
       }
 
       const result = await ai.readText(photo);
-      logger.info(`OCR result (confidence: ${result.confidence}): ${result.text.substring(0, 100)}...`);
+      logger.info(`OCR result: ${result.substring(0, 100)}...`);
 
-      if (!result.text || result.text.trim().length === 0) {
-        await speakBilingual(session, {
-          ar: "ما قدرت ألاقي نص في الصورة.",
-          en: "I couldn't find any text in the image.",
-        });
+      if (!result || result.trim().length === 0) {
+        await speakBilingual(
+          session,
+          {
+            ar: "ما قدرت ألاقي نص في الصورة.",
+            en: "I couldn't find any text in the image.",
+          },
+          sessionId,
+        );
         return;
       }
 
-      await speak(session, result.text);
+      await speak(session, result, sessionId);
     } catch (error) {
       logger.error("OCR reading failed:", error);
-      await speakBilingual(session, messages.generalError);
+      await speakBilingual(session, messages.generalError, sessionId);
     }
   }
 }
