@@ -55,7 +55,7 @@ export class AIHandler {
   }
 
   /** List all enrolled faces */
-  async listFaces(): Promise<Array<{ name: string; faceId: string; hasPhoto: boolean }>> {
+  async listFaces(): Promise<Array<{ name: string; faceId: string; hasPhoto: boolean; enrolledAt: string | null }>> {
     logger.info("AI Handler → List Faces");
     return faceService.listFaces();
   }

@@ -18,8 +18,20 @@ import type { CommandHandler, CommandType, ListeningState } from "./types";
 import { isValidTranscription } from "./utils/transcription-filter";
 import { normalizeTranscription } from "./utils/transcription-normalizer";
 import { capturePhoto } from "./utils/image-utils";
+import { getSettings, updateSettings } from "./services/settings-store";
 
 const logger = new Logger("SuhailApp");
+
+const COMMAND_TYPE_MAP: Record<string, string> = {
+  "scene-summarize": "scene",
+  "face-recognize": "face-recognize",
+  "face-enroll": "face-enroll",
+  "ocr-read-text": "ocr",
+  "find-object": "find-object",
+  "currency-recognize": "currency",
+  "color-detect": "color",
+  "visual-qa": "visual-qa",
+};
 
 /**
  * Main Suhail application server.
@@ -63,10 +75,19 @@ export class SuhailApp extends AppServer {
   private static readonly LISTENING_GRACE_MS = 2_000;
 
   /** Rolling log of the last 20 activity events (served to the mini app UI) */
-  private activityLog: Array<{ time: string; event: string }> = [];
+  private activityLog: Array<{
+    time: string;
+    type: string;
+    command: string;
+    result?: string;
+    event: string;
+  }> = [];
 
   /** Server start time for uptime calculation */
   private readonly startTime = Date.now();
+
+  /** Most recent battery report from the glasses */
+  private glassesBattery: { level: number; charging: boolean } | null = null;
 
   constructor() {
     super({
@@ -113,6 +134,8 @@ export class SuhailApp extends AppServer {
         online: true,
         sessions: this.connectedSessions.size,
         uptime: Math.floor((Date.now() - this.startTime) / 1000),
+        battery: this.glassesBattery?.level ?? null,
+        charging: this.glassesBattery?.charging ?? null,
       });
     });
 
@@ -169,14 +192,28 @@ export class SuhailApp extends AppServer {
       res.sendFile("index.html", { root: "./public" });
     });
 
-    logger.info("Mini app API routes registered (/api/status, /api/activity, /api/faces, /webview)");
+    expressApp.get("/api/settings", (_req: any, res: any) => {
+      res.json(getSettings());
+    });
+
+    expressApp.put("/api/settings", (req: any, res: any) => {
+      try {
+        const updated = updateSettings(req.body || {});
+        res.json(updated);
+      } catch (error) {
+        logger.error("Failed to update settings:", error);
+        res.status(500).json({ error: "Failed to update settings" });
+      }
+    });
+
+    logger.info("API routes registered (/api/status, /api/activity, /api/faces, /api/settings, /webview)");
   }
 
   /**
    * Appends an event to the rolling activity log (capped at 20 entries).
    */
-  private logActivity(event: string): void {
-    this.activityLog.push({ time: new Date().toISOString(), event });
+  private logActivity(event: string, type: string = "system", command: string = "", result?: string): void {
+    this.activityLog.push({ time: new Date().toISOString(), type, command, result, event });
     if (this.activityLog.length > 20) {
       this.activityLog.splice(0, this.activityLog.length - 20);
     }
@@ -200,7 +237,7 @@ export class SuhailApp extends AppServer {
     }
 
     this.connectedSessions.add(sessionId);
-    this.logActivity(`جلسة جديدة (${userId})`);
+    this.logActivity(`جلسة جديدة (${userId})`, "system", "session-start");
 
     // Welcome the user
     await speakBilingual(session, messages.welcome);
@@ -251,6 +288,11 @@ export class SuhailApp extends AppServer {
       await this.handleButtonPress(session, sessionId, event);
     });
 
+    // Track battery level from the glasses
+    session.events.onGlassesBattery((data) => {
+      this.glassesBattery = { level: data.level, charging: data.charging };
+    });
+
     // Listen for touch/swipe gestures on the swipe pad
     session.events.onTouchEvent(async (event) => {
       logger.info(`[${sessionId}] Touch event: gesture="${event.gesture_name}" device="${event.device_model}"`);
@@ -268,7 +310,7 @@ export class SuhailApp extends AppServer {
     this.deactivateListening(sessionId);
     this.speakingSessions.delete(sessionId);
     clearLastResponse(sessionId);
-    this.logActivity(`انتهت الجلسة (${reason})`);
+    this.logActivity(`انتهت الجلسة (${reason})`, "system", "session-stop");
     logger.info(`Session stopped: ${sessionId} (user: ${userId}, reason: ${reason})`);
   }
 
@@ -333,7 +375,7 @@ export class SuhailApp extends AppServer {
         return;
       }
       logger.info(`[${sessionId}] Routed to command: ${route.command}`);
-      this.logActivity(`أمر صوتي: ${route.command}`);
+      this.logActivity(`أمر صوتي: ${route.command}`, COMMAND_TYPE_MAP[route.command] ?? "system", route.command);
 
       // Handle "unknown" intent — not a visual command, speak help message
       if (route.command === ("unknown" as any)) {
@@ -457,10 +499,10 @@ export class SuhailApp extends AppServer {
   ): Promise<void> {
     try {
       if (gestureName === "forward_swipe") {
-        this.logActivity("سحب للأمام ← وضع الاستماع");
+        this.logActivity("سحب للأمام ← وضع الاستماع", "system", "forward-swipe");
         await this.activateListening(session, sessionId);
       } else if (gestureName === "backward_swipe") {
-        this.logActivity("سحب للخلف ← إعادة آخر رد");
+        this.logActivity("سحب للخلف ← إعادة آخر رد", "system", "backward-swipe");
         await this.repeatLastResponse(session, sessionId);
       } else {
         logger.info(`[${sessionId}] Unhandled gesture: "${gestureName}"`);
@@ -491,7 +533,7 @@ export class SuhailApp extends AppServer {
       if (buttonId === "left" && pressType === "short") {
         await this.interruptAndReturnToListening(session, sessionId);
       } else if (buttonId === "left" && pressType === "long") {
-        this.logActivity("زر يسار طويل ← إعادة آخر رد");
+        this.logActivity("زر يسار طويل ← إعادة آخر رد", "system", "left-long-press");
         await this.repeatLastResponse(session, sessionId);
       }
     } catch (error) {
@@ -505,7 +547,7 @@ export class SuhailApp extends AppServer {
    * This is best-effort for in-flight work; it guarantees local state reset.
    */
   private async interruptAndReturnToListening(session: AppSession, sessionId: string): Promise<void> {
-    this.logActivity("زر يسار قصير ← مقاطعة والعودة للاستماع");
+    this.logActivity("زر يسار قصير ← مقاطعة والعودة للاستماع", "system", "interrupt");
 
     this.deactivateListening(sessionId);
     this.faceEnrollHandler.interruptEnrollment(sessionId);

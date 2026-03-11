@@ -218,11 +218,11 @@ export function getEnrolledCount(): number {
  * Lists all enrolled faces from the Rekognition collection.
  * Merges with local metadata for display names and photo availability.
  */
-export async function listFaces(): Promise<Array<{ name: string; faceId: string; hasPhoto: boolean }>> {
+export async function listFaces(): Promise<Array<{ name: string; faceId: string; hasPhoto: boolean; enrolledAt: string | null }>> {
   await ensureCollectionReady();
 
   const meta = await readMetadata();
-  const faces: Array<{ name: string; faceId: string; hasPhoto: boolean }> = [];
+  const faces: Array<{ name: string; faceId: string; hasPhoto: boolean; enrolledAt: string | null }> = [];
   let nextToken: string | undefined;
 
   do {
@@ -245,7 +245,7 @@ export async function listFaces(): Promise<Array<{ name: string; faceId: string;
           hasPhoto = true;
         } catch {}
 
-        faces.push({ name, faceId: face.FaceId, hasPhoto });
+        faces.push({ name, faceId: face.FaceId, hasPhoto, enrolledAt: localEntry?.enrolledAt ?? null });
       }
     }
 
