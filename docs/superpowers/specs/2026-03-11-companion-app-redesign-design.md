@@ -38,6 +38,7 @@ public/index.html (SPA)
   - Currency — "Count money"
   - Color — "What color is this?"
   - Enroll Face — "Remember this person"
+  - Ask Anything — "What does this sign say?" (visual QA fallback)
 - Polls `/api/status` every 5s for live updates
 
 ## Tab 2: Contacts (Photo Cards)
@@ -45,7 +46,7 @@ public/index.html (SPA)
 - Search bar at top for filtering by name
 - Photo card list per contact:
   - Enrolled photo thumbnail (52px rounded square, colored border)
-  - Name, enrollment date, recognition count
+  - Name and enrollment date
   - Tap to open detail view
 - Detail view modal:
   - Full-size enrolled photo
@@ -87,7 +88,56 @@ public/index.html (SPA)
 
 ## Backend Changes
 
-### New API Endpoints
+### 1. Restructure Activity Log (`src/app.ts`)
+
+Current `logActivity()` stores `{ time: string, event: string }` with hardcoded Arabic strings. Restructure to:
+
+```typescript
+interface ActivityEntry {
+  time: string;
+  type: "scene" | "face-recognize" | "face-enroll" | "ocr" | "find-object" | "currency" | "color" | "visual-qa" | "system";
+  command: string;       // e.g. "scene-summarize"
+  result?: string;       // truncated result preview (bilingual)
+  event: string;         // keep for backward compat
+}
+```
+
+Update all `logActivity()` calls in `app.ts` to include `type` and `command` fields. The `event` field stays for backward compatibility. Activity log cap stays at 20 entries.
+
+The frontend uses `type` for color-coding and `result` for the preview text. If `result` is empty, display the `command` name only.
+
+### 2. Extend Status Endpoint (`GET /api/status`)
+
+Current response: `{ online, sessions, uptime }`. Add battery and connection fields:
+
+```typescript
+{
+  online: boolean;
+  sessions: number;
+  uptime: number;
+  battery: number | null;    // null if no data yet
+  charging: boolean | null;
+}
+```
+
+Store battery data from `session.events.onGlassesBattery()` in a variable, expose through the endpoint. Battery may be `null` if no battery event has been received yet — the frontend shows "—" in that case.
+
+### 3. Extend Face List Response (`GET /api/faces`)
+
+Current response per face: `{ name, faceId, hasPhoto }`. Add `enrolledAt`:
+
+```typescript
+{
+  name: string;
+  faceId: string;
+  hasPhoto: boolean;
+  enrolledAt: string | null;  // ISO date from metadata, null if unknown
+}
+```
+
+Recognition count is omitted — it would require tracking every recognition event per face, which adds complexity with minimal value. The UI will show enrollment date only.
+
+### 4. New Settings Endpoints
 
 ```
 GET  /api/settings          — returns current settings object
@@ -104,11 +154,16 @@ Settings payload:
 }
 ```
 
-### TTS Service Changes (`src/services/tts-service.ts`)
+Settings are stored in a global in-memory object with defaults (not per-session). This is acceptable because only one user connects at a time via the webview. On server restart, settings reset to defaults.
 
-Modify `speak()` to pass `SpeakOptions` to `session.audio.speak()`:
+### 5. TTS Service Changes (`src/services/tts-service.ts`)
+
+Modify `speak()` and `speakBilingual()` to read from the global settings object and pass `SpeakOptions`:
 
 ```typescript
+import { getSettings } from "./settings-store";
+
+const settings = getSettings();
 await session.audio.speak(text, {
   voice_id: getVoiceId(settings.voicePreset),
   voice_settings: {
@@ -118,9 +173,17 @@ await session.audio.speak(text, {
 });
 ```
 
-### Storage
+Voice preset mapping (ElevenLabs voice IDs to be selected during implementation):
+- `"default"` — ElevenLabs default voice
+- `"male"` — a male ElevenLabs voice ID
+- `"female"` — a female ElevenLabs voice ID
 
-Settings stored via in-memory object with defaults. Could later use `session.simpleStorage` for persistence.
+### 6. Language Toggle
+
+`config.defaultLanguage` is currently loaded once from `process.env` at startup. To support runtime changes:
+- The settings object stores the active language
+- `speakBilingual()` and `localize()` read from the settings object instead of `config.defaultLanguage`
+- The client-side UI also reads from settings to display the correct language
 
 ## Visual Design System
 
@@ -150,12 +213,21 @@ Settings stored via in-memory object with defaults. Could later use `session.sim
 - Labels: 10-11px, uppercase, letter-spacing 1px
 - Muted text: 9-10px
 
+## Error States
+
+- **Server unreachable** — status banner shows "Disconnected" in red, data sections show "Unable to connect" message
+- **Face list fails** — Contacts tab shows "Could not load contacts" with a retry button (handles AWS credential issues gracefully)
+- **Settings save fails** — inline error toast, settings revert to previous values
+- **No enrolled faces** — empty state with instructions: "Say 'Remember this person' while wearing the glasses"
+- **No activity yet** — empty state: "Activity will appear here as you use voice commands"
+- **Photo missing** — show letter avatar fallback (first letter of name) when `hasPhoto: false`
+
 ## Accessibility
 
 - Semantic HTML: `<nav>`, `<button>`, `<header>`, `<main>`, `<section>`, `<input>`
 - ARIA: `aria-label` on interactive elements, `aria-live="polite"` on status regions, `role` attributes
 - Focus management: visible focus rings, logical tab order
-- RTL support: Arabic layout mirrors for right-to-left
+- RTL support: set `dir="rtl"` on `<html>` when Arabic is selected, use CSS logical properties (`margin-inline-start` instead of `margin-left`, etc.) throughout
 - High contrast: inherent in dark navy + bright cyan/white theme
 - No custom screen reader — relies on TalkBack/VoiceOver
 
