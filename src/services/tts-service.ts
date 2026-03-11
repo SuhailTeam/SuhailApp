@@ -2,22 +2,34 @@ import type { AppSession } from "@mentra/sdk";
 import type { BilingualMessage, Language } from "../types";
 import { config } from "../utils/config";
 import { Logger } from "../utils/logger";
+import { getSettings } from "./settings-store";
 
 const logger = new Logger("TTS");
 
 /** Stores the last spoken response per session for repeat functionality */
 const lastResponses = new Map<string, string>();
 
+/** Maps voice preset names to ElevenLabs voice IDs */
+function getVoiceId(preset: string): string | undefined {
+  const voiceMap: Record<string, string> = {
+    // These are placeholder ElevenLabs voice IDs — replace with actual IDs from the ElevenLabs dashboard
+    male: "pNInz6obpgDQGcFmaJgB",    // "Adam"
+    female: "21m00Tcm4TlvDq8ikWAM",  // "Rachel"
+  };
+  return voiceMap[preset]; // undefined for "default" — uses SDK default
+}
+
 /**
  * Speaks a bilingual message to the user through the glasses speakers.
- * Selects the appropriate language based on config.
+ * Selects the appropriate language based on settings.
  */
 export async function speakBilingual(
   session: AppSession,
   message: BilingualMessage,
   sessionId?: string
 ): Promise<void> {
-  const text = message[config.defaultLanguage];
+  const settings = getSettings();
+  const text = message[settings.language];
   await speak(session, text, sessionId);
 }
 
@@ -28,7 +40,14 @@ export async function speakBilingual(
 export async function speak(session: AppSession, text: string, sessionId?: string): Promise<void> {
   try {
     logger.info(`Speaking: "${text.substring(0, 80)}${text.length > 80 ? "..." : ""}"`);
-    await session.audio.speak(text);
+    const settings = getSettings();
+    await session.audio.speak(text, {
+      voice_id: getVoiceId(settings.voicePreset),
+      voice_settings: {
+        speed: settings.speechSpeed,
+      },
+      volume: settings.volume,
+    });
     if (sessionId) {
       lastResponses.set(sessionId, text);
     }
@@ -51,7 +70,8 @@ export function clearLastResponse(sessionId: string): void {
  * Returns the localized string for the current language setting.
  */
 export function localize(message: BilingualMessage): string {
-  return message[config.defaultLanguage];
+  const settings = getSettings();
+  return message[settings.language];
 }
 
 /** Common bilingual messages used across the app */
