@@ -76,12 +76,20 @@ export class SuhailApp extends AppServer {
 
   /** Rolling log of the last 20 activity events (served to the mini app UI) */
   private activityLog: Array<{
+    id: string;
     time: string;
     type: string;
     command: string;
     result?: string;
     event: string;
+    hasPhoto: boolean;
   }> = [];
+
+  /** Auto-incrementing counter for activity entry IDs */
+  private activityIdCounter = 0;
+
+  /** Stored photos for activity entries (id -> base64) */
+  private activityPhotos = new Map<string, string>();
 
   /** Server start time for uptime calculation */
   private readonly startTime = Date.now();
@@ -141,6 +149,16 @@ export class SuhailApp extends AppServer {
 
     expressApp.get("/api/activity", (_req: any, res: any) => {
       res.json(this.activityLog);
+    });
+
+    expressApp.get("/api/activity/:id/photo", (req: any, res: any) => {
+      const photo = this.activityPhotos.get(req.params.id);
+      if (!photo) {
+        res.status(404).json({ error: "Photo not found" });
+        return;
+      }
+      const buffer = Buffer.from(photo, "base64");
+      res.type("image/jpeg").send(buffer);
     });
 
     expressApp.get("/api/faces", async (_req: any, res: any) => {
@@ -211,12 +229,18 @@ export class SuhailApp extends AppServer {
 
   /**
    * Appends an event to the rolling activity log (capped at 20 entries).
+   * Returns the generated entry ID.
    */
-  private logActivity(event: string, type: string = "system", command: string = "", result?: string): void {
-    this.activityLog.push({ time: new Date().toISOString(), type, command, result, event });
+  private logActivity(event: string, type: string = "system", command: string = "", result?: string, hasPhoto: boolean = false): string {
+    const id = String(++this.activityIdCounter);
+    this.activityLog.push({ id, time: new Date().toISOString(), type, command, result, event, hasPhoto });
     if (this.activityLog.length > 20) {
-      this.activityLog.splice(0, this.activityLog.length - 20);
+      const removed = this.activityLog.splice(0, this.activityLog.length - 20);
+      for (const entry of removed) {
+        this.activityPhotos.delete(entry.id);
+      }
     }
+    return id;
   }
 
   /**
@@ -375,7 +399,19 @@ export class SuhailApp extends AppServer {
         return;
       }
       logger.info(`[${sessionId}] Routed to command: ${route.command}`);
-      this.logActivity(`أمر صوتي: ${route.command}`, COMMAND_TYPE_MAP[route.command] ?? "system", route.command);
+
+      // Resolve pre-captured photo before logging so we can flag hasPhoto
+      const preCapture = listeningEntry.preCapture || undefined;
+      const activityId = this.logActivity(
+        `أمر صوتي: ${route.command}`,
+        COMMAND_TYPE_MAP[route.command] ?? "system",
+        route.command,
+        undefined,
+        !!preCapture,
+      );
+      if (preCapture) {
+        this.activityPhotos.set(activityId, preCapture);
+      }
 
       // Handle "unknown" intent — not a visual command, speak help message
       if (route.command === ("unknown" as any)) {
@@ -391,9 +427,6 @@ export class SuhailApp extends AppServer {
         await speakBilingual(session, messages.generalError);
         return;
       }
-
-      // Pass pre-captured photo to handler if available
-      const preCapture = listeningEntry.preCapture || undefined;
 
       // Enable TTS echo guard before the handler speaks, clear after + buffer
       this.speakingSessions.add(sessionId);

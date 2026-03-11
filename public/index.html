@@ -386,6 +386,16 @@
       padding-inline-start: 8px;
     }
 
+    .activity-card.has-photo {
+      cursor: pointer;
+    }
+
+    .activity-photo-badge {
+      font-size: 10px;
+      margin-inline-start: 4px;
+      opacity: 0.6;
+    }
+
     /* ─── Settings ─── */
     .settings-section {
       margin-bottom: 24px;
@@ -877,6 +887,16 @@
   </div>
 </div>
 
+<!-- ─── Activity Photo Modal ─── -->
+<div class="modal-overlay" id="activity-photo-modal" role="dialog" aria-modal="true" aria-labelledby="activity-photo-title">
+  <div class="modal-content">
+    <button class="modal-close" id="activity-photo-close" aria-label="Close">&times;</button>
+    <img class="modal-photo" id="activity-photo-img" src="" alt="Captured photo" />
+    <div class="modal-name" id="activity-photo-title"></div>
+    <div class="modal-date" id="activity-photo-time"></div>
+  </div>
+</div>
+
 <!-- ─── Fullscreen Photo ─── -->
 <div class="fullscreen-overlay" id="fullscreen-overlay">
   <img id="fullscreen-img" src="" alt="" />
@@ -1280,17 +1300,45 @@
         name = t(CMD_NAMES[type]);
       }
       const preview = entry.result || entry.event || '';
+      const hasPhoto = entry.hasPhoto;
+      const photoClass = hasPhoto ? ' has-photo' : '';
+      const clickHandler = hasPhoto ? ` onclick="window.__showActivityPhoto('${entry.id}', '${esc(name).replace(/'/g, "\\'")}', '${entry.time}')"` : '';
+      const photoBadge = hasPhoto ? '<span class="activity-photo-badge">📷</span>' : '';
       return `
-        <div class="activity-card" style="border-inline-start-color:${color}">
+        <div class="activity-card${photoClass}" style="border-inline-start-color:${color}"${clickHandler}>
           <div class="activity-icon">${icon}</div>
           <div class="activity-info">
-            <div class="activity-name">${esc(name)}</div>
+            <div class="activity-name">${esc(name)} ${photoBadge}</div>
             ${preview ? `<div class="activity-result">${esc(preview)}</div>` : ''}
           </div>
           <span class="activity-time">${relativeTime(entry.time)}</span>
         </div>`;
     }).join('');
   }
+
+  // ─── Activity Photo Modal ───
+  window.__showActivityPhoto = function(id, name, time) {
+    document.getElementById('activity-photo-img').src = '/api/activity/' + id + '/photo';
+    document.getElementById('activity-photo-title').textContent = name;
+    document.getElementById('activity-photo-time').textContent = new Date(time).toLocaleString();
+    document.getElementById('activity-photo-modal').classList.add('active');
+  };
+
+  document.getElementById('activity-photo-close').addEventListener('click', () => {
+    document.getElementById('activity-photo-modal').classList.remove('active');
+  });
+
+  document.getElementById('activity-photo-modal').addEventListener('click', (e) => {
+    if (e.target.id === 'activity-photo-modal') {
+      document.getElementById('activity-photo-modal').classList.remove('active');
+    }
+  });
+
+  document.getElementById('activity-photo-img').addEventListener('click', () => {
+    const src = document.getElementById('activity-photo-img').src;
+    document.getElementById('fullscreen-img').src = src;
+    document.getElementById('fullscreen-overlay').classList.add('active');
+  });
 
   // ─── Settings ───
   const speedSlider = document.getElementById('speed-slider');
