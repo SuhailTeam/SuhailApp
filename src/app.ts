@@ -73,7 +73,7 @@ export class SuhailApp extends AppServer {
       packageName: config.packageName,
       apiKey: config.mentraApiKey,
       port: config.port,
-      publicDir: "./public",
+      publicDir: "./landing/dist",
     });
 
     this.faceEnrollHandler = new FaceEnrollCommand();
