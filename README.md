@@ -72,57 +72,66 @@ git push origin main
 
 ## Features
 
-| Feature | Command | Status |
-|---------|---------|--------|
-| Scene Summarization | "Describe my surroundings" | Mock |
-| OCR / Read Text | "Read this text" | Mock |
-| Face Recognition | "Who is in front of me?" | Mock |
-| Face Enrollment | "Enroll this person" | Mock |
-| Find Object | "Find my keys" | Mock |
-| Currency Recognition | "Count money" | Mock |
-| Visual Question Answering | Any question | Mock |
-| Color Detection | "What color is this?" | Mock |
+| Feature | Command | AI Backend | Status |
+|---------|---------|------------|--------|
+| Scene Summarization | "Describe my surroundings" | OpenRouter / Gemini | Working |
+| OCR / Read Text | "Read this text" | OpenRouter / Gemini | Working |
+| Face Recognition | "Who is in front of me?" | AWS Rekognition | Working |
+| Face Enrollment | "Enroll this person" | AWS Rekognition | Working |
+| Find Object | "Find my keys" | OpenRouter / Gemini | Working |
+| Currency Recognition | "Count money" | OpenRouter / Gemini | Working |
+| Visual Question Answering | Any question | OpenRouter / Gemini | Working |
+| Color Detection | "What color is this?" | OpenRouter / Gemini | Working |
 
-> **Mock** = Structure is ready, using placeholder data. Replace with real API calls when API keys are available.
+All features use real AI backends. Vision tasks use Google Gemini 2.5 Flash Lite via OpenRouter. Face recognition uses AWS Rekognition with persistent storage.
 
-## Button Mapping
+## Controls
 
-| Button | Action |
-|--------|--------|
-| Right — Single press | Scene Summarization |
-| Right — Long press | Face Recognition |
-| Left — Single press | Read Text (OCR) |
+| Input | Action |
+|-------|--------|
+| Forward swipe | Activate listening mode (~10s window) |
+| Backward swipe | Repeat last response |
+| Left — Short press | Interrupt current operation + re-listen |
 | Left — Long press | Repeat last response |
+| Right/Camera | Reserved (native camera hardware) |
+
+The app uses a **swipe-to-command** model: swipe forward to start listening, speak your command, and the AI processes it. No wake word needed.
 
 ## Project Structure
 
 ```
 suhail/
 ├── src/
-│   ├── index.ts                  # Entry point
-│   ├── app.ts                    # Main AppServer — sessions, routing
+│   ├── index.ts                        # Entry point
+│   ├── app.ts                          # Main AppServer — sessions, routing, listening mode, mini app API
 │   ├── commands/
-│   │   ├── command-router.ts     # Voice command → handler routing
-│   │   ├── scene-summarize.ts    # Scene description
-│   │   ├── ocr-read-text.ts      # Text reading (OCR)
-│   │   ├── face-recognize.ts     # Face identification
-│   │   ├── face-enroll.ts        # Face enrollment
-│   │   ├── find-object.ts        # Object location
-│   │   ├── currency-recognize.ts # Currency identification
-│   │   ├── visual-qa.ts          # Visual Q&A
-│   │   └── color-detect.ts       # Color detection
+│   │   ├── command-router.ts           # LLM intent classification + keyword fallback
+│   │   ├── scene-summarize.ts          # Scene description
+│   │   ├── ocr-read-text.ts            # Text reading (OCR via vision LLM)
+│   │   ├── face-recognize.ts           # Face identification
+│   │   ├── face-enroll.ts              # Face enrollment (stateful 2-step)
+│   │   ├── find-object.ts              # Object location
+│   │   ├── currency-recognize.ts       # Currency identification
+│   │   ├── visual-qa.ts                # Visual Q&A (fallback)
+│   │   └── color-detect.ts             # Color detection
 │   ├── services/
-│   │   ├── ai-handler.ts         # Unified AI service facade
-│   │   ├── vision-service.ts     # Vision LLM calls (GPT-4o)
-│   │   ├── ocr-service.ts        # OCR calls (Google Cloud Vision)
-│   │   ├── face-service.ts       # Face recognition (AWS Rekognition)
-│   │   └── tts-service.ts        # Text-to-speech helper
+│   │   ├── ai-handler.ts               # Unified AI service facade
+│   │   ├── vision-service.ts           # Vision LLM calls (OpenRouter / Gemini)
+│   │   ├── ocr-service.ts              # OCR — delegates to vision service
+│   │   ├── face-service.ts             # Face recognition (AWS Rekognition + local storage)
+│   │   └── tts-service.ts              # Text-to-speech helper
 │   ├── utils/
-│   │   ├── config.ts             # Environment config
-│   │   ├── logger.ts             # Logging utility
-│   │   └── image-utils.ts        # Image processing helpers
+│   │   ├── config.ts                   # Environment config
+│   │   ├── logger.ts                   # Logging utility
+│   │   ├── image-utils.ts              # Image processing helpers
+│   │   ├── transcription-filter.ts     # Validates transcriptions (rejects garbled text)
+│   │   └── transcription-normalizer.ts # Script normalization via LLM
 │   └── types/
-│       └── index.ts              # Shared TypeScript types
+│       └── index.ts                    # Shared TypeScript types
+├── data/faces/                         # Persistent face data (metadata + photos)
+├── models/                             # Face.js ML model weights
+├── landing/                            # React + Vite landing page
+├── public/                             # Mini app web dashboard
 ├── .env.example
 ├── .gitignore
 ├── package.json

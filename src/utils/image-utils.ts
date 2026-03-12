@@ -39,7 +39,7 @@ export function getMimeType(base64: string): string {
  */
 export async function capturePhoto(session: AppSession): Promise<string | null> {
   try {
-    const size = "full";
+    const size = "large";
     const compress = "none";
     logger.info(`Capturing photo from glasses camera (size=${size}, compress=${compress})...`);
     const photoData = await session.camera.requestPhoto({ size, compress });

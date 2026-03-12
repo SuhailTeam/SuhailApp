@@ -32,8 +32,8 @@ The project runs in two environments:
 - **Language:** TypeScript (strict mode)
 - **SDK:** `@mentra/sdk` (MentraOS TypeScript SDK)
 - **Package manager:** Bun
-- **Storage:** In-memory currently. The SDK provides `session.simpleStorage` (persistent, cloud-synced key-value store, ~10MB per user) which could replace the planned SQLite/Firebase for some use cases
-- **AI services:** Currently all mocked. Planned: OpenAI GPT-4o, Google Cloud Vision, Azure Face API
+- **Storage:** AWS Rekognition (face collection) + local filesystem (`data/faces/`) for face photos and metadata. The SDK provides `session.simpleStorage` (persistent, cloud-synced key-value store, ~10MB per user) which is available for future use
+- **AI services:** OpenRouter (Google Gemini 2.5 Flash Lite) for vision + intent classification, AWS Rekognition for face recognition
 
 ## Mentra Live Hardware
 
@@ -70,9 +70,9 @@ Mentra Live Glasses <-> User's Phone (Mentra App) <-> MentraOS Cloud (WebSocket)
 7. `onStop(sessionId, userId, reason)` is called (session object is NOT available here)
 
 ### Voice Commands — How They Work
-There is **no built-in wake word or command system** from Mentra. The SDK gives you **raw transcription text** via `session.events.onTranscription()`. Your app is responsible for parsing commands from that text. The Suhail app uses keyword matching in `command-router.ts` — this is the standard pattern.
+There is **no built-in wake word or command system** from Mentra. The SDK gives you **raw transcription text** via `session.events.onTranscription()`. Your app is responsible for parsing commands from that text. The Suhail app uses **LLM-based intent classification** (via OpenRouter) with keyword matching as a fallback — see `command-router.ts`.
 
-**Swipe-to-command:** The user swipes **forward** on the swipe pad to activate a ~10 second listening window. The next voice transcription is processed as a command without needing a wake word. Swiping **backward** repeats the last response. The left button also works as a fallback (short press = listen, long press = repeat). This prevents accidental triggers from background conversation and is more reliable than speech-based wake words.
+**Swipe-to-command:** The user swipes **forward** on the swipe pad to activate a ~10 second listening window. The next voice transcription is processed as a command without needing a wake word. Swiping **backward** repeats the last response. The left button also works as a fallback (short press = interrupt + re-listen, long press = repeat). This prevents accidental triggers from background conversation and is more reliable than speech-based wake words.
 
 ## MentraOS SDK Reference
 
@@ -371,31 +371,41 @@ Configured in the Mentra Developer Console (not at runtime):
 ```
 suhail/
 ├── src/
-│   ├── index.ts                  # Entry point — creates SuhailApp and calls app.start()
-│   ├── app.ts                    # SuhailApp class (extends AppServer) — session handling, event routing
+│   ├── index.ts                        # Entry point — creates SuhailApp and calls app.start()
+│   ├── app.ts                          # SuhailApp class (extends AppServer) — session handling, event routing, listening mode, mini app API
 │   ├── commands/
-│   │   ├── command-router.ts     # routeCommand(text) -> { command, params } — keyword matching
-│   │   ├── scene-summarize.ts    # "Describe my surroundings" -> photo -> vision LLM -> speak
-│   │   ├── ocr-read-text.ts      # "Read this text" -> photo -> OCR -> speak
-│   │   ├── face-recognize.ts     # "Who is this?" -> photo -> face API -> speak name
-│   │   ├── face-enroll.ts        # "Enroll this person" -> photo -> ask name -> save (stateful, 2-step)
-│   │   ├── find-object.ts        # "Find my keys" -> photo -> object detection -> speak location
-│   │   ├── currency-recognize.ts # "Count money" -> photo -> vision LLM -> speak denomination
-│   │   ├── visual-qa.ts          # Any question -> photo + question -> vision LLM -> speak answer
-│   │   └── color-detect.ts       # "What color is this?" -> photo -> color analysis -> speak color
+│   │   ├── command-router.ts           # LLM intent classification (OpenRouter) + keyword fallback
+│   │   ├── scene-summarize.ts          # "Describe my surroundings" -> photo -> vision LLM -> speak
+│   │   ├── ocr-read-text.ts            # "Read this text" -> photo -> vision LLM OCR -> speak
+│   │   ├── face-recognize.ts           # "Who is this?" -> photo -> AWS Rekognition -> speak name
+│   │   ├── face-enroll.ts              # "Enroll this person" -> photo -> ask name -> save (stateful, 2-step)
+│   │   ├── find-object.ts              # "Find my keys" -> photo -> object detection -> speak location
+│   │   ├── currency-recognize.ts       # "Count money" -> photo -> vision LLM -> speak denomination
+│   │   ├── visual-qa.ts                # Any question -> photo + question -> vision LLM -> speak answer
+│   │   └── color-detect.ts             # "What color is this?" -> photo -> color analysis -> speak color
 │   ├── services/
-│   │   ├── ai-handler.ts         # AIHandler class — unified facade that routes to specific services
-│   │   ├── vision-service.ts     # GPT-4o vision calls (scene, VQA, currency, object detection, color)
-│   │   ├── ocr-service.ts        # Google Cloud Vision OCR
-│   │   ├── face-service.ts       # Azure Face API (recognition + enrollment) + in-memory face database
-│   │   └── tts-service.ts        # speak(), speakBilingual(), localize(), common messages
+│   │   ├── ai-handler.ts               # AIHandler class — unified facade that routes to specific services
+│   │   ├── vision-service.ts           # OpenRouter/Gemini vision calls (scene, VQA, currency, object, color, OCR)
+│   │   ├── ocr-service.ts              # OCR — delegates to vision-service.extractText()
+│   │   ├── face-service.ts             # AWS Rekognition (recognition + enrollment) + local file storage
+│   │   └── tts-service.ts              # speak(), speakBilingual(), localize(), common messages
 │   ├── utils/
-│   │   ├── config.ts             # Environment variables (all from process.env with defaults)
-│   │   ├── logger.ts             # Logger class with tag-based [Tag] prefix logging
-│   │   └── image-utils.ts        # capturePhoto(session) -> base64 string, base64 helpers
+│   │   ├── config.ts                   # Environment variables (all from process.env with defaults)
+│   │   ├── logger.ts                   # Logger class with tag-based [Tag] prefix logging
+│   │   ├── image-utils.ts              # capturePhoto(session) -> base64 string, base64 helpers
+│   │   ├── transcription-filter.ts     # Validates transcriptions (rejects garbled/wrong-script text)
+│   │   └── transcription-normalizer.ts # LLM-based script normalization (Arabic-script English → Latin)
 │   └── types/
-│       └── index.ts              # All shared interfaces and types
-├── .env.example                  # Environment variable template
+│       └── index.ts                    # All shared interfaces and types
+├── data/
+│   ├── .gitkeep
+│   └── faces/
+│       └── metadata.json               # Face enrollment metadata (name → faceId mappings)
+├── models/                             # Face.js ML model weights (SSD MobileNet, landmark, recognition)
+├── landing/                            # React + Vite landing page (separate app)
+├── public/
+│   └── index.html                      # Mini app web dashboard (face management, activity log)
+├── .env.example                        # Environment variable template
 ├── .gitignore
 ├── package.json
 ├── tsconfig.json
@@ -407,15 +417,19 @@ suhail/
 ### Request Flow (Voice Command)
 
 ```
-User speaks -> Mentra glasses mic -> MentraOS STT -> onTranscription(data)
-  -> check data.isFinal (skip partial transcriptions)
-  -> check pending face enrollment (intercept if waiting for name)
-  -> routeCommand(data.text) -> { command: CommandType, params }
-  -> handlers[command].execute(session, params)
-    -> speakBilingual(session, messages.processing)  // "Processing..."
-    -> capturePhoto(session)                          // Camera -> Buffer -> base64
-    -> ai.someMethod(base64Image)                     // AI service (currently mocked)
-    -> speak(session, result)                         // Speak result to user
+User swipes forward -> listening mode activated (10s window)
+  -> User speaks -> Mentra glasses mic -> MentraOS STT -> onTranscription(data)
+    -> check data.isFinal (skip partial transcriptions)
+    -> check confidence >= MIN_CONFIDENCE (reject low-confidence)
+    -> validate transcription (reject garbled/wrong-script via transcription-filter)
+    -> normalize script if needed (Arabic-script English → Latin via transcription-normalizer)
+    -> check pending face enrollment (intercept if waiting for name)
+    -> routeCommand(data.text) -> LLM intent classification (3s timeout) or keyword fallback
+    -> handlers[command].execute(session, params)
+      -> speakBilingual(session, messages.processing)  // "Processing..."
+      -> capturePhoto(session)                          // Camera -> Buffer -> base64
+      -> ai.someMethod(base64Image)                     // AI service call
+      -> speak(session, result)                         // Speak result to user
 ```
 
 ### Request Flow (Button Press)
@@ -424,8 +438,8 @@ Mentra Live has **2 physical buttons** ("left" and "right"/"camera") plus a swip
 
 - **Forward swipe** → Activate listening mode (~10s window for next voice command)
 - **Backward swipe** → Repeat last response
-- **Left short press** → Activate listening mode (fallback)
-- **Left long press** → Repeat last response (fallback)
+- **Left short press** → Interrupt current operation + return to listening mode
+- **Left long press** → Repeat last response
 - **Right/camera button** → Reserved (triggers native camera hardware)
 
 ```
@@ -456,31 +470,42 @@ Standard handler flow:
 
 Face enrollment is the only stateful command. It works across two transcriptions:
 
-1. User says "enroll this person" -> captures photo, stores in `pendingEnrollments` Map, asks "say the name"
-2. User says "Abdullah" -> `app.ts` checks `hasPendingEnrollment(sessionId)`, passes name to complete enrollment
-3. Face is saved to in-memory `faceDatabase` array
+1. User says "enroll this person" → captures photo, stores in `pendingEnrollments` Map, asks "say the name"
+2. User says "Abdullah" → `app.ts` checks `hasPendingEnrollment(sessionId)`, passes name to complete enrollment
+3. Face is indexed into AWS Rekognition collection + photo saved to `data/faces/`
 
 The state machine lives in `FaceEnrollCommand.pendingEnrollments: Map<sessionId, base64Photo>`.
 
+**Enhanced safeguards:**
+- **TTS echo detection** — ignores the app's own speech (e.g., "please say the person's name") being picked up by the mic
+- **30-second timeout** — auto-cancels enrollment if no name is provided
+- **Concurrent enrollment lock** — prevents multiple enrollments from the same session
+- **Interrupt handling** — left button short press cancels the pending enrollment
+
 ## Voice Command Routing (command-router.ts)
 
-The router uses **keyword matching** (case-insensitive). Routes are checked in order — first match wins. The user must first activate listening mode by pressing the left button, then speak their command within the ~10 second window.
+The router uses a **hybrid approach**: LLM-based intent classification as the primary method, with keyword matching as a fallback. The user must first activate listening mode (forward swipe or left button), then speak their command within the ~10 second window.
 
-| Priority | Command | Keywords (any match) | Notes |
-|----------|---------|---------------------|-------|
-| 1 | face-enroll | "enroll", "save face", "remember this person" | Arabic: "سجل", "احفظ" |
-| 2 | face-recognize | "who is this", "who is in front" | Also checks requiredAll: ["who"]. Arabic: "من هذا", "من قدامي" |
-| 3 | scene-summarize | "describe", "surroundings", "what's around" | Arabic: "وصف", "حولي", "ايش حولي" |
-| 4 | ocr-read-text | "read", "text" | Arabic: "اقرأ", "نص" |
-| 5 | find-object | "find", "where is" | Extracts object name via regex. Arabic: "وين", "ابحث" |
-| 6 | currency-recognize | "money", "currency", "bill" | Arabic: "فلوس", "عملة" |
-| 7 | color-detect | "color", "colour" | Arabic: "لون" |
-| fallback | visual-qa | (anything unmatched) | Sends transcription as the question |
+### Primary: LLM Intent Classification
+- Uses **OpenRouter API** with `google/gemini-2.5-flash-lite` model
+- Classifies transcription into 9 intents (8 commands + "unknown")
+- **3-second timeout** — falls back to keyword matching if LLM is slow or unavailable
+- Extracts parameters (object name for find-object, question text for visual-qa)
+- Requires `OPENROUTER_API_KEY` — logs warning and falls back if missing
 
-The router supports two matching modes:
-- `keywords[]` — OR logic (any keyword triggers the route)
-- `requiredAll[]` — AND logic (all must match)
-- `extractParams(text)` — optional function to pull params from the text (used by find-object)
+### Fallback: Keyword Matching
+Used when LLM classification fails, times out, or API key is missing. Matches first word of transcription:
+
+| Keyword | Command | Arabic |
+|---------|---------|--------|
+| "describe" | scene-summarize | "وصف" |
+| "read" | ocr-read-text | "اقرأ" |
+| "who" | face-recognize | "من" |
+| "enroll" | face-enroll | "سجل" |
+| "find" | find-object | "وين" |
+| "money" | currency-recognize | "فلوس" |
+| "color" | color-detect | "لون" |
+| (anything else) | visual-qa | (fallback) |
 
 ## Bilingual Support (Arabic/English)
 
@@ -494,34 +519,47 @@ await speakBilingual(session, { ar: "جاري المعالجة...", en: "Process
 // Selects language based on config.defaultLanguage (from DEFAULT_LANGUAGE env var, default: "ar")
 ```
 
-Common messages are defined in `src/services/tts-service.ts` as the `messages` object (welcome, processing, cameraError, generalError, noResult, repeatNoHistory).
+Common messages are defined in `src/services/tts-service.ts` as the `messages` object: welcome, processing, cameraError, generalError, noResult, repeatNoHistory, listening, received, cancelled, didntCatch, listeningTimeout, unknownCommand, interruptedListening.
 
 ## Services Layer
 
 ### AI Handler (ai-handler.ts)
 Facade class that routes to specific services. All command handlers use this instead of calling services directly.
 
-### Vision Service (vision-service.ts) — ALL MOCKED
-Handles 5 different vision tasks through GPT-4o (planned):
+Methods: `describeScene()`, `readText()`, `recognizeFace()`, `enrollFace()`, `listFaces()`, `deleteFace()`, `renameFace()`, `findObject()`, `recognizeCurrency()`, `answerVisualQuestion()`, `detectColor()`, `loadPersistedFaces()`, `configureFaceStorage()`
+
+### Vision Service (vision-service.ts) — WORKING
+Uses **OpenRouter API** with `google/gemini-2.5-flash-lite` model. Handles 6 vision tasks:
 - `describeScene(base64)` — scene description for blind users
 - `answerVisualQuestion(base64, question)` — VQA
 - `recognizeCurrency(base64)` — money denomination
 - `detectObject(base64, targetName)` — object location (e.g., "to your right, on the table")
 - `detectColor(base64)` — dominant color name + hex
+- `extractText(base64)` — OCR text extraction via vision LLM
 
-### OCR Service (ocr-service.ts) — MOCKED
-- `extractText(base64)` — Google Cloud Vision TEXT_DETECTION (planned)
+All calls include bilingual prompt support (ar/en based on config). Images sent as base64 data URI.
 
-### Face Service (face-service.ts) — MOCKED
-- `recognizeFace(base64)` — compare against in-memory database
-- `enrollFace(name, base64)` — extract embedding + store in `faceDatabase[]`
-- `extractFaceEmbedding(base64)` — returns mock 128-dim vector
-- `getEnrolledCount()` — returns count
-- Azure Face API integration planned
+### OCR Service (ocr-service.ts) — WORKING
+- `extractText(base64)` — delegates to `visionService.extractText()` (vision LLM-based OCR)
+- Azure OCR code exists but is commented out
+
+### Face Service (face-service.ts) — WORKING
+Uses **AWS Rekognition** with local file storage for metadata and photos:
+- `recognizeFace(base64)` — search Rekognition collection, return best match
+- `enrollFace(name, base64)` — index face into collection + save photo to `data/faces/`
+- `listFaces()` — enumerate all enrolled faces with metadata
+- `deleteFace(faceId)` — remove from Rekognition + local storage
+- `renameFace(faceId, newName)` — update local metadata
+- `loadPersistedFaces()` — initialize/verify Rekognition collection on startup
+- `getFacePhotoPath(faceId)` — get path to stored enrollment photo
+
+Face names are hex-encoded for Rekognition's `ExternalImageId` field. Local `data/faces/metadata.json` stores the human-readable name mappings. Handles AWS credential errors gracefully (logs warning, continues).
 
 ### TTS Service (tts-service.ts) — WORKING
-- `speak(session, text)` — wraps `session.audio.speak()` with logging + error handling
-- `speakBilingual(session, message)` — selects language from config
+- `speak(session, text, sessionId?)` — wraps `session.audio.speak()` with logging + tracks last response per session
+- `speakBilingual(session, message, sessionId?)` — selects language from config
+- `getLastResponse(sessionId)` — retrieve last spoken text for repeat functionality
+- `clearLastResponse(sessionId)` — cleanup on session end
 - `localize(message)` — returns string for current language
 
 ## Environment Variables
@@ -533,44 +571,89 @@ Defined in `src/utils/config.ts`, loaded from `.env` (local) or Railway dashboar
 | `PACKAGE_NAME` | MentraOS app identifier | `com.suhail.assistant` |
 | `MENTRAOS_API_KEY` | MentraOS authentication | (empty) |
 | `PORT` | Server port | `3000` |
-| `OPENAI_API_KEY` | GPT-4o vision API | (empty) |
-| `GOOGLE_CLOUD_VISION_API_KEY` | OCR API | (empty) |
-| `AZURE_FACE_API_KEY` | Face recognition | (empty) |
-| `AZURE_FACE_ENDPOINT` | Face API endpoint | (empty) |
+| `OPENROUTER_API_KEY` | OpenRouter API — vision + LLM intent classification | (empty) |
+| `AWS_REGION` | AWS region for Rekognition | `us-east-1` |
+| `AWS_REKOGNITION_COLLECTION_ID` | Face collection ID in Rekognition | `suhail-faces` |
+| `AWS_ACCESS_KEY_ID` | AWS credentials (used implicitly by AWS SDK) | (empty) |
+| `AWS_SECRET_ACCESS_KEY` | AWS credentials (used implicitly by AWS SDK) | (empty) |
 | `DEFAULT_LANGUAGE` | Response language ("ar" or "en") | `ar` |
-| `CONFIDENCE_THRESHOLD` | Min confidence for results | `0.85` |
+| `CONFIDENCE_THRESHOLD` | Min confidence for face recognition results | `0.5` |
+| `MIN_CONFIDENCE` | Min confidence for transcription filtering | `0.55` |
+| `OPENAI_API_KEY` | *(unused — kept for future)* | (empty) |
+| `GOOGLE_CLOUD_VISION_API_KEY` | *(unused — OCR uses vision LLM now)* | (empty) |
+| `AZURE_OCR_KEY` / `AZURE_OCR_ENDPOINT` | *(unused — kept for future)* | (empty) |
 
 ## Current State of the Project
 
-All AI service calls are **mocked** with placeholder data. The app structure, types, routing, event handling, and TTS are fully working.
+All core features are **fully implemented** with real AI backends. The app is production-ready.
 
 ### What's Done
 - Full MentraOS SDK integration (AppServer, sessions, events, camera, audio)
-- Voice command routing with keyword matching (Arabic + English)
-- Button press handling
-- All 8 command handlers with proper error handling
-- Bilingual TTS (Arabic/English)
-- Face enrollment state machine (2-step conversational flow)
-- In-memory face database
+- **LLM-based command routing** with keyword fallback (Arabic + English)
+- **Listening mode** with state machine (idle → active → processing), timeouts, and echo guard
+- Button press + swipe gesture handling with interrupt support
+- All 8 command handlers with real AI backends
+- **Vision services** — OpenRouter/Gemini for scene description, VQA, currency, object detection, color, OCR
+- **Face recognition** — AWS Rekognition with persistent storage (collection + local files)
+- **Face enrollment** — stateful 2-step flow with TTS echo detection, timeouts, and concurrency locks
+- Bilingual TTS (Arabic/English) with repeat-last-response support
+- Transcription filtering (garbled text, wrong script, low confidence)
+- Transcription normalization (Arabic-script English → Latin via LLM)
+- **Mini app API** — REST endpoints for face management and activity monitoring
+- **Landing page** — React + Vite app in `landing/`
 - Logger, config, image utils
-
-### What Needs Real Implementation (TODO)
-Each of these is marked with `// TODO` comments in the service files:
-1. **vision-service.ts** — Replace mocks with real OpenAI GPT-4o API calls (scene, VQA, currency, object, color)
-2. **ocr-service.ts** — Replace mock with real Google Cloud Vision API call
-3. **face-service.ts** — Replace mock with real Azure Face API (detect, identify, extract embedding)
-4. **face-service.ts** — Replace in-memory `faceDatabase[]` with persistent storage (consider `session.simpleStorage` or SQLite/Firebase)
-5. **command-router.ts** — Optionally upgrade keyword matching to NLP-based intent detection
 
 ### SDK Features Not Yet Used (Available for Future Use)
 - `session.led` — LED feedback (e.g., blink green when processing, red on error)
 - `session.location` — GPS-aware features (e.g., "where am I?")
-- `session.simpleStorage` — Persistent storage for face database, user preferences
+- `session.simpleStorage` — Persistent storage for user preferences
 - `session.capabilities` — Runtime hardware detection
 - `session.events.onHeadPosition()` — Trigger actions on head up/down
 - `session.events.onPhoneNotifications()` — Read phone notifications aloud
 - `session.events.onGlassesBattery()` — Low battery warnings
 - Video streaming via `session.camera.startManagedStream()`
+
+## Listening Mode (app.ts)
+
+The app uses a **listening state machine** to prevent accidental command triggers from background conversation:
+
+### States
+- **idle** — Not listening. Transcriptions are ignored.
+- **active** — Listening window open (~10 seconds). Next valid transcription is processed as a command.
+- **processing** — Command received, executing handler. Returns to idle when done.
+
+### Activation
+- **Forward swipe** or **left short press** → transitions from idle to active
+- Speaks "تفضل" / "Listening" cue
+- Optionally pre-captures a photo in parallel (optimization for faster command execution)
+
+### Safeguards
+- **10-second timeout** (`LISTENING_TIMEOUT_MS`) — auto-returns to idle if no command received
+- **2-second grace period** (`LISTENING_GRACE_MS`) — ignores stale transcriptions immediately after activation (leftover audio from before the swipe)
+- **TTS echo guard** (`TTS_ECHO_BUFFER_MS = 1500ms`) — marks session as "speaking" during TTS output + 1.5s buffer, so the mic doesn't pick up the app's own speech as a command
+- **Confidence filtering** — rejects transcriptions below `MIN_CONFIDENCE` threshold
+- **Script validation** — via `transcription-filter.ts`, rejects garbled or wrong-script text
+- **Script normalization** — via `transcription-normalizer.ts`, converts Arabic-script English to Latin using LLM
+
+### Interrupts
+- Left short press during **active** or **processing** → cancels current operation, returns to listening
+- Backward swipe or left long press → repeats last response (works from any state)
+
+## Mini App API (app.ts)
+
+The app serves REST endpoints via Express (from `AppServer.getExpressApp()`), used by the web dashboard at `/webview`:
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/status` | Online status, connected session count, uptime |
+| `GET` | `/api/activity` | Rolling activity log (last 20 events) |
+| `GET` | `/api/faces` | List all enrolled faces (name, faceId, hasPhoto) |
+| `GET` | `/api/faces/:faceId/photo` | Download enrollment photo for a face |
+| `DELETE` | `/api/faces/:faceId` | Delete an enrolled face |
+| `PUT` | `/api/faces/:faceId` | Rename an enrolled face (body: `{ name }`) |
+| `GET` | `/webview` | Serve the mini app dashboard HTML |
+
+The dashboard HTML is in `public/index.html`.
 
 ## Rules for Contributing
 
