@@ -374,6 +374,7 @@ suhail/
 │   ├── index.ts                        # Entry point — creates SuhailApp and calls app.start()
 │   ├── app.ts                          # SuhailApp class (extends AppServer) — session handling, event routing, listening mode, mini app API
 │   ├── commands/
+│   │   ├── base-command.ts             # AbstractCommandHandler — shared try/catch, photo capture, error speech
 │   │   ├── command-router.ts           # LLM intent classification (OpenRouter) + keyword fallback
 │   │   ├── scene-summarize.ts          # "Describe my surroundings" -> photo -> vision LLM -> speak
 │   │   ├── ocr-read-text.ts            # "Read this text" -> photo -> vision LLM OCR -> speak
@@ -425,7 +426,7 @@ User swipes forward -> listening mode activated (10s window)
     -> validate transcription (reject garbled/wrong-script via transcription-filter)
     -> normalize script if needed (Arabic-script English → Latin via transcription-normalizer)
     -> check pending face enrollment (intercept if waiting for name)
-    -> routeCommand(data.text) -> LLM intent classification (3s timeout) or keyword fallback
+    -> routeCommand(data.text) -> LLM intent classification (2s timeout) or keyword fallback
     -> handlers[command].execute(session, params)
       -> speakBilingual(session, messages.processing)  // "Processing..."
       -> capturePhoto(session)                          // Camera -> Buffer -> base64
@@ -451,21 +452,28 @@ User swipes forward on swipe pad -> onTouchEvent(event)
 
 ### Command Handler Pattern
 
-Every command handler implements the `CommandHandler` interface:
+Most command handlers extend `AbstractCommandHandler` (from `base-command.ts`), which provides:
+- Automatic try/catch with error speech
+- Photo capture with 5-second timeout
+- Pre-capture photo fallback (uses pre-captured photo from listening mode if available, with 3s await timeout)
+- "Got it" / "حسناً" feedback is spoken by `app.ts` before the handler is called
+
+Subclasses only need to implement the `process(session, photo, params)` method:
 
 ```typescript
-interface CommandHandler {
-  execute(session: AppSession, params?: Record<string, string>): Promise<void>;
+abstract class AbstractCommandHandler implements CommandHandler {
+  abstract process(session: AppSession, photo: string, params?: Record<string, string>): Promise<void>;
 }
 ```
 
-Standard handler flow:
-1. Speak "Processing..." feedback
-2. Capture photo via `capturePhoto(session)` — returns base64 or null
+The only exception is `face-enroll.ts`, which implements `CommandHandler` directly due to its stateful 2-step flow.
+
+Standard handler flow (handled by `AbstractCommandHandler`):
+1. `app.ts` speaks "Got it" / "حسناً" before calling the handler
+2. Capture photo via `capturePhoto(session)` with 5-second timeout — uses pre-captured photo if available, returns base64 or null
 3. If null, speak "Camera not available" and return
-4. Call AI service via `AIHandler`
-5. Speak the result
-6. Catch errors and speak "Sorry, I couldn't process that"
+4. Call `process(session, photo, params)` — subclass logic
+5. Catch errors and speak "Sorry, I couldn't process that"
 
 ### Face Enrollment (Special — Stateful, 2-Step)
 
@@ -488,9 +496,9 @@ The state machine lives in `FaceEnrollCommand.pendingEnrollments: Map<sessionId,
 The router uses a **hybrid approach**: LLM-based intent classification as the primary method, with keyword matching as a fallback. The user must first activate listening mode (forward swipe or left button), then speak their command within the ~10 second window.
 
 ### Primary: LLM Intent Classification
-- Uses **OpenRouter API** with `google/gemini-2.5-flash-lite` model
+- Uses **OpenRouter API** with configurable model (default: `google/gemini-2.5-flash-lite`, via `CLASSIFICATION_MODEL` env var)
 - Classifies transcription into 9 intents (8 commands + "unknown")
-- **3-second timeout** — falls back to keyword matching if LLM is slow or unavailable
+- **2-second timeout** — falls back to keyword matching if LLM is slow or unavailable
 - Extracts parameters (object name for find-object, question text for visual-qa)
 - Requires `OPENROUTER_API_KEY` — logs warning and falls back if missing
 
@@ -527,10 +535,10 @@ Common messages are defined in `src/services/tts-service.ts` as the `messages` o
 ### AI Handler (ai-handler.ts)
 Facade class that routes to specific services. All command handlers use this instead of calling services directly.
 
-Methods: `describeScene()`, `readText()`, `recognizeFace()`, `enrollFace()`, `listFaces()`, `deleteFace()`, `renameFace()`, `findObject()`, `recognizeCurrency()`, `answerVisualQuestion()`, `detectColor()`, `loadPersistedFaces()`, `configureFaceStorage()`
+Methods: `describeScene()`, `readText()`, `recognizeFace()`, `enrollFace()`, `listFaces()`, `deleteFace()`, `renameFace()`, `findObject()`, `recognizeCurrency()`, `answerVisualQuestion()`, `detectColor()`, `loadPersistedFaces()`
 
 ### Vision Service (vision-service.ts) — WORKING
-Uses **OpenRouter API** with `google/gemini-2.5-flash-lite` model. Handles 6 vision tasks:
+Uses **OpenRouter API** with configurable model (default: `google/gemini-2.5-flash-lite`, via `VISION_MODEL` env var). All 6 vision functions delegate to a shared `callVisionAPI` helper (extracted fetch boilerplate) with explicit `max_tokens` set. Handles 6 vision tasks:
 - `describeScene(base64)` — scene description for blind users
 - `answerVisualQuestion(base64, question)` — VQA
 - `recognizeCurrency(base64)` — money denomination
@@ -542,7 +550,6 @@ All calls include bilingual prompt support (ar/en based on config). Images sent 
 
 ### OCR Service (ocr-service.ts) — WORKING
 - `extractText(base64)` — delegates to `visionService.extractText()` (vision LLM-based OCR)
-- Azure OCR code exists but is commented out
 
 ### Face Service (face-service.ts) — WORKING
 Uses **AWS Rekognition** with local file storage for metadata and photos:
@@ -590,9 +597,8 @@ Defined in `src/utils/config.ts`, loaded from `.env` (local) or Railway dashboar
 | `DEFAULT_LANGUAGE` | Response language ("ar" or "en") | `ar` |
 | `CONFIDENCE_THRESHOLD` | Min confidence for face recognition results | `0.5` |
 | `MIN_CONFIDENCE` | Min confidence for transcription filtering | `0.55` |
-| `OPENAI_API_KEY` | *(unused — kept for future)* | (empty) |
-| `GOOGLE_CLOUD_VISION_API_KEY` | *(unused — OCR uses vision LLM now)* | (empty) |
-| `AZURE_OCR_KEY` / `AZURE_OCR_ENDPOINT` | *(unused — kept for future)* | (empty) |
+| `VISION_MODEL` | OpenRouter model for vision tasks | `google/gemini-2.5-flash-lite` |
+| `CLASSIFICATION_MODEL` | OpenRouter model for intent classification | `google/gemini-2.5-flash-lite` |
 
 ## Current State of the Project
 
@@ -639,7 +645,7 @@ The app uses a **listening state machine** to prevent accidental command trigger
 ### Activation
 - **Forward swipe** or **left short press** → transitions from idle to active
 - Speaks "تفضل" / "Listening" cue
-- Optionally pre-captures a photo in parallel (optimization for faster command execution)
+- Pre-captures a photo in parallel with a 3-second await timeout (optimization for faster command execution)
 
 ### Safeguards
 - **10-second timeout** (`LISTENING_TIMEOUT_MS`) — auto-returns to idle if no command received
@@ -681,7 +687,7 @@ The companion app is a 4-tab SPA in `public/index.html` with:
 2. **Always give feedback** — speak "Processing..." before any long operation, then speak the result or error
 3. **Always handle camera failure** — `capturePhoto()` can return null, speak "Camera not available"
 4. **Always catch errors** — every handler wraps its logic in try/catch and speaks a friendly error
-5. **Use the CommandHandler interface** — `execute(session: AppSession, params?: Record<string, string>): Promise<void>`
+5. **Extend AbstractCommandHandler** — implement `process(session, photo, params)` for standard commands. Use `CommandHandler` directly only for non-standard flows (e.g., stateful multi-step commands)
 6. **Use AIHandler facade** — don't call services directly from command handlers
 7. **Use speakBilingual for common messages** — define `{ ar: "...", en: "..." }` pairs
 8. **Use the Logger** — `new Logger("TagName")` for consistent `[TagName]` prefixed logging
@@ -729,7 +735,7 @@ Use **conventional commit** format:
 
 ## Adding a New Command
 
-1. Create `src/commands/my-command.ts` implementing `CommandHandler`
+1. Create `src/commands/my-command.ts` extending `AbstractCommandHandler` (from `base-command.ts`). You only need to implement the `process(session, photo, params)` method — the base class handles try/catch, photo capture (with 5s timeout), pre-capture fallback, and error speech. Use `CommandHandler` directly only if your command has a non-standard flow (like face enrollment's 2-step state machine)
 2. Add the command type to `CommandType` union in `src/types/index.ts`
 3. Add keyword route to `routes[]` array in `src/commands/command-router.ts`
 4. Register the handler in `this.handlers` map in `src/app.ts` constructor

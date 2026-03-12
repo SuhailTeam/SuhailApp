@@ -1,39 +1,28 @@
 import type { AppSession } from "@mentra/sdk";
-import type { CommandHandler } from "../types";
-import { AIHandler } from "../services/ai-handler";
-import { speak, speakBilingual, messages } from "../services/tts-service";
-import { capturePhoto } from "../utils/image-utils";
-import { Logger } from "../utils/logger";
-
-const logger = new Logger("CurrencyRecognize");
-const ai = new AIHandler();
+import { speakBilingual } from "../services/tts-service";
+import { AbstractCommandHandler } from "./base-command";
 
 /**
  * Currency Recognition command.
  * Captures a photo and identifies the denomination of money.
  */
-export class CurrencyRecognizeCommand implements CommandHandler {
-  async execute(session: AppSession, params?: Record<string, string>): Promise<void> {
-    logger.info("Executing currency recognition...");
-    const sessionId = params?._sessionId;
+export class CurrencyRecognizeCommand extends AbstractCommandHandler {
+  constructor() {
+    super("CurrencyRecognize");
+  }
 
-    try {
-      const photo = params?._preCapture || await capturePhoto(session);
-      if (!photo) {
-        await speakBilingual(session, messages.cameraError);
-        return;
-      }
+  protected async process(
+    session: AppSession,
+    photo: string,
+    _params: Record<string, string> | undefined,
+    sessionId: string | undefined,
+  ): Promise<void> {
+    const result = await this.ai.recognizeCurrency(photo);
+    this.logger.info(`Currency result: ${result.denomination} ${result.currency} (confidence: ${result.confidence})`);
 
-      const result = await ai.recognizeCurrency(photo);
-      logger.info(`Currency result: ${result.denomination} ${result.currency} (confidence: ${result.confidence})`);
-
-      await speakBilingual(session, {
-        ar: `هذي ورقة ${result.denomination} ${result.currency === "SAR" ? "ريال" : result.currency}`,
-        en: `This is a ${result.denomination} ${result.currency} bill`,
-      }, sessionId);
-    } catch (error) {
-      logger.error("Currency recognition failed:", error);
-      await speakBilingual(session, messages.generalError, sessionId);
-    }
+    await speakBilingual(session, {
+      ar: `هذي ورقة ${result.denomination} ${result.currency === "SAR" ? "ريال" : result.currency}`,
+      en: `This is a ${result.denomination} ${result.currency} bill`,
+    }, sessionId);
   }
 }

@@ -45,7 +45,6 @@ export class SuhailApp extends AppServer {
   private faceEnrollHandler: FaceEnrollCommand;
 
   private ai = new AIHandler();
-  private faceStorageConfigured = false;
 
   /** Session IDs currently connected (tracked for the mini app UI) */
   private connectedSessions = new Set<string>();
@@ -214,8 +213,8 @@ export class SuhailApp extends AppServer {
    */
   private logActivity(event: string, type: string = "system", command: string = "", result?: string): void {
     this.activityLog.push({ time: new Date().toISOString(), type, command, result, event });
-    if (this.activityLog.length > 20) {
-      this.activityLog.splice(0, this.activityLog.length - 20);
+    while (this.activityLog.length > 20) {
+      this.activityLog.shift();
     }
   }
 
@@ -229,12 +228,6 @@ export class SuhailApp extends AppServer {
     userId: string
   ): Promise<void> {
     logger.info(`New session started: ${sessionId} (user: ${userId})`);
-
-    if (!this.faceStorageConfigured) {
-      this.ai.configureFaceStorage(session.simpleStorage);
-      await this.ai.loadPersistedFaces();
-      this.faceStorageConfigured = true;
-    }
 
     this.connectedSessions.add(sessionId);
     this.logActivity(`جلسة جديدة (${userId})`, "system", "session-start");
@@ -440,22 +433,25 @@ export class SuhailApp extends AppServer {
     this.listeningSessions.set(sessionId, { state: "active", timer, activatedAt: Date.now() });
     logger.info(`[${sessionId}] Listening mode activated (${SuhailApp.LISTENING_TIMEOUT_MS / 1000}s window)`);
 
-    // Pre-capture photo in parallel with the listening cue to reduce delay
-    const photoCapturePromise = capturePhoto(session).then((photo) => {
-      const entry = this.listeningSessions.get(sessionId);
-      if (entry) {
-        entry.preCapture = photo;
-        logger.info(`[${sessionId}] Pre-capture ${photo ? "ready" : "failed"}`);
-      }
-    });
-
+    // Fire photo capture and TTS listening cue in parallel
+    const preCapturePromise = capturePhoto(session);
     await speakBilingual(session, messages.listening, sessionId);
 
-    // Reset activatedAt AFTER TTS finishes so the grace period starts
-    // from when the mic is free, not from when we initiated the cue
+    // Await pre-capture with a 3s timeout (TTS already bought us ~1s)
+    const PRE_CAPTURE_TIMEOUT_MS = 3_000;
     const entry = this.listeningSessions.get(sessionId);
     if (entry && entry.state === "active") {
       entry.activatedAt = Date.now();
+      try {
+        entry.preCapture = await Promise.race([
+          preCapturePromise,
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), PRE_CAPTURE_TIMEOUT_MS)),
+        ]);
+        logger.info(`[${sessionId}] Pre-capture ${entry.preCapture ? "ready" : "timed out"}`);
+      } catch {
+        entry.preCapture = null;
+        logger.info(`[${sessionId}] Pre-capture failed`);
+      }
     }
   }
 

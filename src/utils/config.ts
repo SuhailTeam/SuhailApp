@@ -11,20 +11,14 @@ export const config = {
   /** Server port */
   port: parseInt(process.env.PORT || "3000", 10),
 
-  /** OpenAI API key for GPT-4o vision */
-  openaiApiKey: process.env.OPENAI_API_KEY || "",
-
-  /** OpenRouter API key for Qwen3-VL */
+  /** OpenRouter API key */
   openRouterApiKey: process.env.OPENROUTER_API_KEY || "",
 
-  /** Google Cloud Vision API key for OCR */
-  googleCloudVisionApiKey: process.env.GOOGLE_CLOUD_VISION_API_KEY || "",
+  /** Vision LLM model (used for scene description, VQA, currency, object, color, OCR) */
+  visionModel: process.env.VISION_MODEL || "google/gemini-2.5-flash-lite",
 
-  /** Azure OCR API key */
-  azureOcrKey: process.env.AZURE_OCR_KEY || "",
-
-  /** Azure OCR endpoint */
-  azureOcrEndpoint: process.env.AZURE_OCR_ENDPOINT || "",
+  /** Classification LLM model (used for intent classification and transcription normalization) */
+  classificationModel: process.env.CLASSIFICATION_MODEL || "google/gemini-2.5-flash-lite",
 
   /** AWS region for Rekognition (e.g. us-east-1) */
   awsRegion: process.env.AWS_REGION || "us-east-1",

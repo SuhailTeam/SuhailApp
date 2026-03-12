@@ -17,14 +17,6 @@ const logger = new Logger("AIHandler");
  * Routes requests to the correct underlying service.
  */
 export class AIHandler {
-  /** Configure optional session simple storage for face persistence */
-  configureFaceStorage(simpleStorage?: {
-    get: (key: string) => Promise<string | null | undefined>;
-    set: (key: string, value: string) => Promise<void>;
-  }): void {
-    faceService.configureSimpleStorage(simpleStorage);
-  }
-
   /** Load persisted enrolled faces into memory */
   async loadPersistedFaces(): Promise<void> {
     await faceService.loadPersistedFaces();

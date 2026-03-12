@@ -36,7 +36,21 @@ Suhail is an AI-powered assistive system that runs on **Mentra Live** smart glas
    ```bash
    cp .env.example .env
    ```
-   Edit `.env` and fill in your API keys.
+   Edit `.env` and fill in your API keys. Key variables:
+
+   | Variable | Purpose | Default |
+   |----------|---------|---------|
+   | `MENTRAOS_API_KEY` | MentraOS authentication | (required) |
+   | `OPENROUTER_API_KEY` | OpenRouter API for vision + intent classification | (required) |
+   | `AWS_ACCESS_KEY_ID` | AWS credentials for Rekognition | (required) |
+   | `AWS_SECRET_ACCESS_KEY` | AWS credentials for Rekognition | (required) |
+   | `AWS_REGION` | AWS region | `us-east-1` |
+   | `AWS_REKOGNITION_COLLECTION_ID` | Face collection ID | `suhail-faces` |
+   | `DEFAULT_LANGUAGE` | Response language (`ar` or `en`) | `ar` |
+   | `VISION_MODEL` | OpenRouter model for vision tasks | `google/gemini-2.5-flash-lite` |
+   | `CLASSIFICATION_MODEL` | OpenRouter model for intent classification | `google/gemini-2.5-flash-lite` |
+   | `CONFIDENCE_THRESHOLD` | Min confidence for face recognition | `0.5` |
+   | `MIN_CONFIDENCE` | Min confidence for transcription filtering | `0.55` |
 
 4. **Start the server**
    ```bash
@@ -86,7 +100,16 @@ After merging to `development` and testing, open a PR from `development` → `ma
 | Visual Question Answering | Any question | OpenRouter / Gemini | Working |
 | Color Detection | "What color is this?" | OpenRouter / Gemini | Working |
 
-All features use real AI backends. Vision tasks use Google Gemini 2.5 Flash Lite via OpenRouter. Face recognition uses AWS Rekognition with persistent storage.
+All features use real AI backends. Vision tasks use Google Gemini 2.5 Flash Lite via OpenRouter (configurable via `VISION_MODEL` and `CLASSIFICATION_MODEL` env vars). Face recognition uses AWS Rekognition with persistent storage.
+
+### Recent Improvements
+
+- Command handlers refactored to use `AbstractCommandHandler` base class (reduces boilerplate)
+- Photo capture now has a 5-second timeout to prevent hangs
+- Pre-capture photo is properly awaited with a 3-second timeout
+- LLM intent classification timeout reduced from 3s to 2s for faster routing
+- Vision API calls now include explicit `max_tokens` limits for predictable response sizes
+- Dead code cleanup (~400 lines removed)
 
 ## Companion App (Webview)
 
@@ -119,6 +142,7 @@ suhail/
 │   ├── index.ts                        # Entry point
 │   ├── app.ts                          # Main AppServer — sessions, routing, listening mode, mini app API
 │   ├── commands/
+│   │   ├── base-command.ts             # AbstractCommandHandler base class
 │   │   ├── command-router.ts           # LLM intent classification + keyword fallback
 │   │   ├── scene-summarize.ts          # Scene description
 │   │   ├── ocr-read-text.ts            # Text reading (OCR via vision LLM)

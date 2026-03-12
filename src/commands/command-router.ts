@@ -5,7 +5,7 @@ import type { CommandType, IntentType, ClassificationResult, RouteResult } from 
 const logger = new Logger("CommandRouter");
 
 /** Timeout for the LLM classification call (ms) */
-const CLASSIFY_TIMEOUT_MS = 3_000;
+const CLASSIFY_TIMEOUT_MS = 2_000;
 
 /** Maps LLM intent names to CommandType values */
 const intentToCommand: Record<Exclude<IntentType, "unknown">, CommandType> = {
@@ -124,7 +124,7 @@ async function classifyIntent(
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "google/gemini-2.5-flash-lite",
+          model: config.classificationModel,
           max_tokens: 80,
           messages: [
             { role: "system", content: CLASSIFIER_PROMPT },

@@ -15,54 +15,73 @@ function langName(): string {
   return config.defaultLanguage === "ar" ? "Arabic" : "English";
 }
 
+/* ── Shared OpenRouter vision helper ─────────────────────── */
+
+interface VisionCallOptions {
+  prompt: string;
+  imageBase64: string;
+  maxTokens?: number;
+}
+
+/**
+ * Sends an image + text prompt to the OpenRouter vision API and returns the
+ * model's text response. All exported functions delegate to this helper.
+ */
+async function callVisionAPI(options: VisionCallOptions): Promise<string> {
+  const { prompt, imageBase64, maxTokens } = options;
+
+  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${config.openRouterApiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: config.visionModel,
+      ...(maxTokens ? { max_tokens: maxTokens } : {}),
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: prompt },
+            { type: "image_url", image_url: { url: `data:image/jpeg;base64,${imageBase64}` } },
+          ],
+        },
+      ],
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`OpenRouter API failed with status ${response.status}`);
+  }
+
+  const data = await response.json();
+  return data.choices?.[0]?.message?.content ?? "";
+}
+
+/** Strips markdown code fences from LLM JSON output. */
+function cleanJSON(raw: string): string {
+  return raw.replace(/```json/g, "").replace(/```/g, "").trim();
+}
+
+/* ── Exported vision functions ───────────────────────────── */
+
 /**
  * Sends a photo to OpenRouter for a scene description.
  */
 export async function describeScene(imageBase64: string): Promise<VisionResponse> {
   logger.info("Sending image to OpenRouter API...");
-
   try {
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${config.openRouterApiKey}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash-lite",
-        max_tokens: 150,
-        messages: [
-          {
-            role: "user",
-            content: [
-              {
-                type: "text",
-                text: `You are the eyes of a blind person. Describe what's in front of them in 2-3 short sentences. Focus on people, obstacles, and key objects. Skip minor details. ${langInstruction()}`
-              },
-              {
-                type: "image_url",
-                image_url: {
-                  url: `data:image/jpeg;base64,${imageBase64}`
-                }
-              }
-            ]
-          }
-        ]
-      })
+    const description = await callVisionAPI({
+      prompt: `You are the eyes of a blind person. Describe what's in front of them in 2-3 short sentences. Focus on people, obstacles, and key objects. Skip minor details. ${langInstruction()}`,
+      imageBase64,
+      maxTokens: 150,
     });
-
-    if (!response.ok) {
-      throw new Error(`OpenRouter API failed with status ${response.status}`);
-    }
-
-    const data = await response.json();
-    const description = data.choices?.[0]?.message?.content || (config.defaultLanguage === "ar"
-      ? "عذرًا، لم أتمكن من الحصول على وصف للصورة."
-      : "Sorry, I couldn't get a description of the image.");
     logger.info(`Received scene description: ${description}`);
-
     return {
-      description,
+      description: description || (config.defaultLanguage === "ar"
+        ? "عذرًا، لم أتمكن من الحصول على وصف للصورة."
+        : "Sorry, I couldn't get a description of the image."),
       confidence: 0.90,
     };
   } catch (error) {
@@ -79,49 +98,17 @@ export async function answerVisualQuestion(
   question: string
 ): Promise<VisionResponse> {
   logger.info(`Sending image + question to OpenRouter: "${question}"`);
-
   try {
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${config.openRouterApiKey}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash-lite",
-        max_tokens: 150,
-        messages: [
-          {
-            role: "user",
-            content: [
-              {
-                type: "text",
-                text: `${question}\n\nAnswer briefly in 1-2 sentences based on the image. Be direct. Your response will be read aloud by text-to-speech, so use plain spoken language only — no markdown, no LaTeX, no special symbols. Write math as spoken words (e.g. "x equals 37 over 5" not "$x = 37/5$"). ${langInstruction()}`
-              },
-              {
-                type: "image_url",
-                image_url: {
-                  url: `data:image/jpeg;base64,${imageBase64}`
-                }
-              }
-            ]
-          }
-        ]
-      })
+    const description = await callVisionAPI({
+      prompt: `${question}\n\nAnswer briefly in 1-2 sentences based on the image. Be direct. Your response will be read aloud by text-to-speech, so use plain spoken language only — no markdown, no LaTeX, no special symbols. Write math as spoken words (e.g. "x equals 37 over 5" not "$x = 37/5$"). ${langInstruction()}`,
+      imageBase64,
+      maxTokens: 200,
     });
-
-    if (!response.ok) {
-      throw new Error(`OpenRouter API failed with status ${response.status}`);
-    }
-
-    const data = await response.json();
-    const description = data.choices?.[0]?.message?.content || (config.defaultLanguage === "ar"
-      ? "عذرًا، لم أتمكن من الإجابة على السؤال."
-      : "Sorry, I couldn't answer the question.");
     logger.info(`Received VQA answer: ${description}`);
-
     return {
-      description,
+      description: description || (config.defaultLanguage === "ar"
+        ? "عذرًا، لم أتمكن من الإجابة على السؤال."
+        : "Sorry, I couldn't answer the question."),
       confidence: 0.90,
     };
   } catch (error) {
@@ -139,45 +126,13 @@ export async function recognizeCurrency(imageBase64: string): Promise<{
   confidence: number;
 }> {
   logger.info("Sending image to OpenRouter for currency recognition...");
-
   try {
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${config.openRouterApiKey}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash-lite",
-        messages: [
-          {
-            role: "user",
-            content: [
-              {
-                type: "text",
-                text: "Identify the currency and denomination of the money in this image. Respond ONLY with a raw JSON object (no markdown) containing 'denomination' (string, e.g. '50') and 'currency' (string, e.g. 'SAR')."
-              },
-              {
-                type: "image_url",
-                image_url: {
-                  url: `data:image/jpeg;base64,${imageBase64}`
-                }
-              }
-            ]
-          }
-        ]
-      })
+    const raw = await callVisionAPI({
+      prompt: "Identify the currency and denomination of the money in this image. Respond ONLY with a raw JSON object (no markdown) containing 'denomination' (string, e.g. '50') and 'currency' (string, e.g. 'SAR').",
+      imageBase64,
+      maxTokens: 100,
     });
-
-    if (!response.ok) {
-      throw new Error(`OpenRouter API failed with status ${response.status}`);
-    }
-
-    const data = await response.json();
-    const content = data.choices?.[0]?.message?.content || "{}";
-    const cleanedContent = content.replace(/```json/g, "").replace(/```/g, "").trim();
-    const parsed = JSON.parse(cleanedContent);
-
+    const parsed = JSON.parse(cleanJSON(raw) || "{}");
     return {
       denomination: parsed.denomination || "0",
       currency: parsed.currency || "UNKNOWN",
@@ -197,23 +152,9 @@ export async function detectObject(
   targetObject: string
 ): Promise<{ found: boolean; location: string; confidence: number }> {
   logger.info(`Searching for "${targetObject}" via OpenRouter...`);
-
   try {
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${config.openRouterApiKey}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash-lite",
-        messages: [
-          {
-            role: "user",
-            content: [
-              {
-                type: "text",
-                text: `You are helping a visually impaired person find "${targetObject}" using their smart glasses camera.
+    const raw = await callVisionAPI({
+      prompt: `You are helping a visually impaired person find "${targetObject}" using their smart glasses camera.
 
 Look carefully at the entire image for "${targetObject}" or anything that closely resembles it.
 
@@ -223,29 +164,11 @@ If found, describe its location using spatial directions relative to the person 
 - Mention what it's near or on top of for context (e.g., "on the desk next to the laptop")
 
 Respond ONLY with a raw JSON object (no markdown):
-{"found": true/false, "location": "spatial description in ${langName()}, or empty string if not found"}`
-              },
-              {
-                type: "image_url",
-                image_url: {
-                  url: `data:image/jpeg;base64,${imageBase64}`
-                }
-              }
-            ]
-          }
-        ]
-      })
+{"found": true/false, "location": "spatial description in ${langName()}, or empty string if not found"}`,
+      imageBase64,
+      maxTokens: 150,
     });
-
-    if (!response.ok) {
-      throw new Error(`OpenRouter API failed with status ${response.status}`);
-    }
-
-    const data = await response.json();
-    const content = data.choices?.[0]?.message?.content || "{}";
-    const cleanedContent = content.replace(/```json/g, "").replace(/```/g, "").trim();
-    const parsed = JSON.parse(cleanedContent);
-
+    const parsed = JSON.parse(cleanJSON(raw) || "{}");
     return {
       found: !!parsed.found,
       location: parsed.location || "",
@@ -259,49 +182,16 @@ Respond ONLY with a raw JSON object (no markdown):
 
 /**
  * Extracts all visible text from an image using the vision LLM.
- * Used as an alternative to Azure OCR for better contextual reading.
  */
 export async function extractText(imageBase64: string): Promise<string> {
   logger.info("Sending image to OpenRouter for text extraction (vision OCR)...");
-
   try {
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${config.openRouterApiKey}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash-lite",
-        max_tokens: 500,
-        messages: [
-          {
-            role: "user",
-            content: [
-              {
-                type: "text",
-                text: `Read and extract ALL visible text from this image. Return ONLY the text you can see, exactly as written, preserving the reading order. Do not describe the image or add any commentary. If no text is found, respond with an empty string. ${langInstruction()}`
-              },
-              {
-                type: "image_url",
-                image_url: {
-                  url: `data:image/jpeg;base64,${imageBase64}`
-                }
-              }
-            ]
-          }
-        ]
-      })
+    const extractedText = await callVisionAPI({
+      prompt: `Read and extract ALL visible text from this image. Return ONLY the text you can see, exactly as written, preserving the reading order. Do not describe the image or add any commentary. If no text is found, respond with an empty string. ${langInstruction()}`,
+      imageBase64,
+      maxTokens: 500,
     });
-
-    if (!response.ok) {
-      throw new Error(`OpenRouter API failed with status ${response.status}`);
-    }
-
-    const data = await response.json();
-    const extractedText = data.choices?.[0]?.message?.content || "";
     logger.info(`Vision OCR result: ${extractedText.substring(0, 100)}...`);
-
     return extractedText;
   } catch (error) {
     logger.error("Failed to extract text via OpenRouter API", error);
@@ -317,45 +207,13 @@ export async function detectColor(imageBase64: string): Promise<{
   hex: string;
 }> {
   logger.info("Analyzing image for dominant color via OpenRouter...");
-
   try {
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${config.openRouterApiKey}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash-lite",
-        messages: [
-          {
-            role: "user",
-            content: [
-              {
-                type: "text",
-                text: `Identify the dominant color in the center of this image. Respond ONLY with a raw JSON object (no markdown) containing 'colorName' (the name of the color in ${langName()}) and 'hex' (the hex code of the color).`
-              },
-              {
-                type: "image_url",
-                image_url: {
-                  url: `data:image/jpeg;base64,${imageBase64}`
-                }
-              }
-            ]
-          }
-        ]
-      })
+    const raw = await callVisionAPI({
+      prompt: `Identify the dominant color in the center of this image. Respond ONLY with a raw JSON object (no markdown) containing 'colorName' (the name of the color in ${langName()}) and 'hex' (the hex code of the color).`,
+      imageBase64,
+      maxTokens: 80,
     });
-
-    if (!response.ok) {
-      throw new Error(`OpenRouter API failed with status ${response.status}`);
-    }
-
-    const data = await response.json();
-    const content = data.choices?.[0]?.message?.content || "{}";
-    const cleanedContent = content.replace(/```json/g, "").replace(/```/g, "").trim();
-    const parsed = JSON.parse(cleanedContent);
-
+    const parsed = JSON.parse(cleanJSON(raw) || "{}");
     return {
       colorName: parsed.colorName || (config.defaultLanguage === "ar" ? "غير معروف" : "unknown"),
       hex: parsed.hex || "#000000",

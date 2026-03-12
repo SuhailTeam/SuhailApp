@@ -1,51 +1,33 @@
 import type { AppSession } from "@mentra/sdk";
-import type { CommandHandler } from "../types";
-import { AIHandler } from "../services/ai-handler";
-import { speak, speakBilingual, messages } from "../services/tts-service";
-import { capturePhoto } from "../utils/image-utils";
-import { Logger } from "../utils/logger";
-
-const logger = new Logger("OCRReadText");
-const ai = new AIHandler();
+import { speak, speakBilingual } from "../services/tts-service";
+import { AbstractCommandHandler } from "./base-command";
 
 /**
  * OCR / Read Text command.
  * Captures a photo and extracts text using OCR.
  */
-export class OcrReadTextCommand implements CommandHandler {
-  async execute(
+export class OcrReadTextCommand extends AbstractCommandHandler {
+  constructor() {
+    super("OCRReadText");
+  }
+
+  protected async process(
     session: AppSession,
-    params?: Record<string, string>,
+    photo: string,
+    _params: Record<string, string> | undefined,
+    sessionId: string | undefined,
   ): Promise<void> {
-    logger.info("Executing OCR text reading...");
-    const sessionId = params?._sessionId;
+    const result = await this.ai.readText(photo);
+    this.logger.info(`OCR result: ${result.substring(0, 100)}...`);
 
-    try {
-      const photo = params?._preCapture || await capturePhoto(session);
-      if (!photo) {
-        await speakBilingual(session, messages.cameraError);
-        return;
-      }
-
-      const result = await ai.readText(photo);
-      logger.info(`OCR result: ${result.substring(0, 100)}...`);
-
-      if (!result || result.trim().length === 0) {
-        await speakBilingual(
-          session,
-          {
-            ar: "ما قدرت ألاقي نص في الصورة.",
-            en: "I couldn't find any text in the image.",
-          },
-          sessionId,
-        );
-        return;
-      }
-
-      await speak(session, result, sessionId);
-    } catch (error) {
-      logger.error("OCR reading failed:", error);
-      await speakBilingual(session, messages.generalError, sessionId);
+    if (!result || result.trim().length === 0) {
+      await speakBilingual(session, {
+        ar: "ما قدرت ألاقي نص في الصورة.",
+        en: "I couldn't find any text in the image.",
+      }, sessionId);
+      return;
     }
+
+    await speak(session, result, sessionId);
   }
 }

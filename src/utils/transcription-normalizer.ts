@@ -45,7 +45,7 @@ export async function normalizeTranscription(
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "google/gemini-2.5-flash-lite",
+          model: config.classificationModel,
           max_tokens: 60,
           temperature: 0,
           messages: [

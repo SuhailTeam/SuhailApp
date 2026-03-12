@@ -106,15 +106,6 @@ export function getFacePhotoPath(faceId: string): string {
 }
 
 /**
- * Kept for compatibility. Face data persistence is handled by AWS Rekognition collection.
- */
-export function configureSimpleStorage(
-  _simpleStorage?: { get: (key: string) => Promise<string | null | undefined>; set: (key: string, value: string) => Promise<void> }
-): void {
-  logger.info("configureSimpleStorage called (ignored for Rekognition-backed face service)");
-}
-
-/**
  * Ensures the Rekognition collection exists and is reachable.
  */
 export async function loadPersistedFaces(): Promise<void> {
@@ -204,14 +195,6 @@ export async function enrollFace(name: string, imageBase64: string): Promise<str
 
   logger.info(`Face enrolled successfully. FaceId=${faceId}`);
   return faceId;
-}
-
-/**
- * Returns the number of enrolled faces.
- * Not queried from AWS to avoid extra API calls on hot paths.
- */
-export function getEnrolledCount(): number {
-  return 0;
 }
 
 /**

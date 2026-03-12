@@ -4,16 +4,6 @@ import { Logger } from "./logger";
 const logger = new Logger("ImageUtils");
 
 /**
- * Validates that a base64 string looks like a valid image.
- */
-export function isValidBase64Image(base64: string): boolean {
-  if (!base64 || base64.length < 100) {
-    return false;
-  }
-  return true;
-}
-
-/**
  * Strips the data URI prefix from a base64 image string if present.
  * e.g. "data:image/jpeg;base64,/9j/4A..." → "/9j/4A..."
  */
@@ -41,8 +31,14 @@ export async function capturePhoto(session: AppSession): Promise<string | null> 
   try {
     const size = "large";
     const compress = "none";
+    const CAPTURE_TIMEOUT_MS = 5_000;
     logger.info(`Capturing photo from glasses camera (size=${size}, compress=${compress})...`);
-    const photoData = await session.camera.requestPhoto({ size, compress });
+    const photoData = await Promise.race([
+      session.camera.requestPhoto({ size, compress }),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("Photo capture timed out")), CAPTURE_TIMEOUT_MS)
+      ),
+    ]);
     if (!photoData || !photoData.buffer) {
       logger.warn("Captured photo is invalid or empty");
       return null;
