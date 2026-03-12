@@ -8,3 +8,6 @@ data/
 
 venv/
 .claude/
+
+# Superpowers brainstorm mockups
+.superpowers/
