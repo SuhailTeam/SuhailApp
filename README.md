@@ -63,12 +63,15 @@ bun run typecheck
 
 ### Git workflow
 ```bash
-git pull origin main        # Get latest changes
+git checkout development                          # Work on development branch
+git checkout -b feature/my-feature development    # Create feature branch
 # Make your changes...
 git add .
-git commit -m "description"
-git push origin main
+git commit -m "feat: description of change"       # Use conventional commits
+git push origin feature/my-feature                # Push and open PR → development
 ```
+
+After merging to `development` and testing, open a PR from `development` → `main` for release. See `CLAUDE.md` for full version control guidelines.
 
 ## Features
 
@@ -84,6 +87,17 @@ git push origin main
 | Color Detection | "What color is this?" | OpenRouter / Gemini | Working |
 
 All features use real AI backends. Vision tasks use Google Gemini 2.5 Flash Lite via OpenRouter. Face recognition uses AWS Rekognition with persistent storage.
+
+## Companion App (Webview)
+
+The companion app is served at `/webview` — a 4-tab SPA with dark navy theme:
+
+- **Home** — connection status, battery level, voice commands reference
+- **Contacts** — search, view, rename, and delete enrolled faces with photo cards
+- **Activity** — color-coded rolling log of voice commands and system events
+- **Settings** — speech speed, volume, voice preset, and language (Arabic/English with RTL)
+
+Settings are applied in real time to all TTS output.
 
 ## Controls
 
@@ -119,7 +133,8 @@ suhail/
 │   │   ├── vision-service.ts           # Vision LLM calls (OpenRouter / Gemini)
 │   │   ├── ocr-service.ts              # OCR — delegates to vision service
 │   │   ├── face-service.ts             # Face recognition (AWS Rekognition + local storage)
-│   │   └── tts-service.ts              # Text-to-speech helper
+│   │   ├── tts-service.ts              # Text-to-speech helper
+│   │   └── settings-store.ts           # Global settings store (speed, volume, voice, language)
 │   ├── utils/
 │   │   ├── config.ts                   # Environment config
 │   │   ├── logger.ts                   # Logging utility
@@ -131,7 +146,7 @@ suhail/
 ├── data/faces/                         # Persistent face data (metadata + photos)
 ├── models/                             # Face.js ML model weights
 ├── landing/                            # React + Vite landing page
-├── public/                             # Mini app web dashboard
+├── public/                             # Companion app (4-tab SPA)
 ├── .env.example
 ├── .gitignore
 ├── package.json

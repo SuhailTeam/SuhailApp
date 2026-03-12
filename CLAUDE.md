@@ -388,7 +388,8 @@ suhail/
 │   │   ├── vision-service.ts           # OpenRouter/Gemini vision calls (scene, VQA, currency, object, color, OCR)
 │   │   ├── ocr-service.ts              # OCR — delegates to vision-service.extractText()
 │   │   ├── face-service.ts             # AWS Rekognition (recognition + enrollment) + local file storage
-│   │   └── tts-service.ts              # speak(), speakBilingual(), localize(), common messages
+│   │   ├── tts-service.ts              # speak(), speakBilingual(), localize(), common messages
+│   │   └── settings-store.ts           # Global settings store (speech speed, volume, voice preset, language)
 │   ├── utils/
 │   │   ├── config.ts                   # Environment variables (all from process.env with defaults)
 │   │   ├── logger.ts                   # Logger class with tag-based [Tag] prefix logging
@@ -404,7 +405,7 @@ suhail/
 ├── models/                             # Face.js ML model weights (SSD MobileNet, landmark, recognition)
 ├── landing/                            # React + Vite landing page (separate app)
 ├── public/
-│   └── index.html                      # Mini app web dashboard (face management, activity log)
+│   └── index.html                      # Companion app — 4-tab SPA (Status, Activity, Contacts, Settings)
 ├── .env.example                        # Environment variable template
 ├── .gitignore
 ├── package.json
@@ -557,10 +558,20 @@ Face names are hex-encoded for Rekognition's `ExternalImageId` field. Local `dat
 
 ### TTS Service (tts-service.ts) — WORKING
 - `speak(session, text, sessionId?)` — wraps `session.audio.speak()` with logging + tracks last response per session
-- `speakBilingual(session, message, sessionId?)` — selects language from config
+- `speakBilingual(session, message, sessionId?)` — selects language from settings store
 - `getLastResponse(sessionId)` — retrieve last spoken text for repeat functionality
 - `clearLastResponse(sessionId)` — cleanup on session end
 - `localize(message)` — returns string for current language
+- TTS now respects global settings: speech speed, volume, voice preset, and language
+
+### Settings Store (settings-store.ts) — WORKING
+Global in-memory settings store for voice and language preferences:
+- `getSettings()` — returns current settings (defensive copy)
+- `updateSettings(partial)` — validates and applies partial updates
+- Settings: `speechSpeed` (0.5–2.0), `volume` (0.0–1.0), `voicePreset` ("default" | "male" | "female"), `language` ("ar" | "en")
+- All values are validated and clamped to valid ranges
+- Defaults read from `DEFAULT_LANGUAGE` env var; all other defaults are hardcoded
+- In-memory only — resets on server restart (future: persist via `session.simpleStorage`)
 
 ## Environment Variables
 
@@ -599,18 +610,21 @@ All core features are **fully implemented** with real AI backends. The app is pr
 - Bilingual TTS (Arabic/English) with repeat-last-response support
 - Transcription filtering (garbled text, wrong script, low confidence)
 - Transcription normalization (Arabic-script English → Latin via LLM)
-- **Mini app API** — REST endpoints for face management and activity monitoring
+- **Companion app** — 4-tab SPA (Status, Activity, Contacts, Settings) at `/webview`
+- **Global settings store** — voice speed, volume, voice preset, language (in-memory)
+- **Battery tracking** — glasses battery level exposed via `/api/status`
+- **Structured activity log** — enriched with type, command, result fields
+- **Face enrollment timestamps** — `enrolledAt` field on face metadata
 - **Landing page** — React + Vite app in `landing/`
 - Logger, config, image utils
 
 ### SDK Features Not Yet Used (Available for Future Use)
 - `session.led` — LED feedback (e.g., blink green when processing, red on error)
 - `session.location` — GPS-aware features (e.g., "where am I?")
-- `session.simpleStorage` — Persistent storage for user preferences
+- `session.simpleStorage` — Persistent storage for user preferences (could persist settings across restarts)
 - `session.capabilities` — Runtime hardware detection
 - `session.events.onHeadPosition()` — Trigger actions on head up/down
 - `session.events.onPhoneNotifications()` — Read phone notifications aloud
-- `session.events.onGlassesBattery()` — Low battery warnings
 - Video streaming via `session.camera.startManagedStream()`
 
 ## Listening Mode (app.ts)
@@ -641,19 +655,25 @@ The app uses a **listening state machine** to prevent accidental command trigger
 
 ## Mini App API (app.ts)
 
-The app serves REST endpoints via Express (from `AppServer.getExpressApp()`), used by the web dashboard at `/webview`:
+The app serves REST endpoints via Express (from `AppServer.getExpressApp()`), used by the companion app at `/webview`:
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `GET` | `/api/status` | Online status, connected session count, uptime |
-| `GET` | `/api/activity` | Rolling activity log (last 20 events) |
-| `GET` | `/api/faces` | List all enrolled faces (name, faceId, hasPhoto) |
+| `GET` | `/api/status` | Online status, session count, uptime, battery level, charging state |
+| `GET` | `/api/activity` | Rolling activity log (last 20 events, structured with type/command/result) |
+| `GET` | `/api/faces` | List all enrolled faces (`{ faces, count }` — each face has name, faceId, hasPhoto, enrolledAt) |
 | `GET` | `/api/faces/:faceId/photo` | Download enrollment photo for a face |
 | `DELETE` | `/api/faces/:faceId` | Delete an enrolled face |
 | `PUT` | `/api/faces/:faceId` | Rename an enrolled face (body: `{ name }`) |
-| `GET` | `/webview` | Serve the mini app dashboard HTML |
+| `GET` | `/api/settings` | Get current global settings (speechSpeed, volume, voicePreset, language) |
+| `PUT` | `/api/settings` | Update global settings (partial update, validated) |
+| `GET` | `/webview` | Serve the companion app HTML |
 
-The dashboard HTML is in `public/index.html`.
+The companion app is a 4-tab SPA in `public/index.html` with:
+- **Home** — connection status, battery level, voice commands reference
+- **Contacts** — search, view, rename, delete enrolled faces with photo cards
+- **Activity** — color-coded rolling log of commands and system events
+- **Settings** — speech speed slider, volume slider, voice preset, language toggle (Arabic/English with RTL)
 
 ## Rules for Contributing
 
@@ -668,6 +688,44 @@ The dashboard HTML is in `public/index.html`.
 9. **Use capturePhoto()** from `utils/image-utils.ts` — it handles the SDK's `requestPhoto()`, Buffer->base64 conversion, and error handling
 10. **Keep it simple** — this is a graduation project. No over-engineering.
 11. **Keep `.env.example` up to date** — whenever you add, remove, or rename an environment variable in `config.ts` or anywhere in the codebase, update `.env.example` to reflect the change. This file is how teammates know which env vars they need.
+12. **Keep documentation in sync** — whenever you add, remove, or change features, APIs, services, files, or project structure, update **both** `CLAUDE.md` and `README.md` to reflect the changes. These files must always match the current state of the code. Outdated docs are worse than no docs.
+
+## Version Control Etiquette
+
+### Branch Strategy
+- **`main`** — production branch, auto-deploys to Railway. Always stable.
+- **`development`** — integration branch. All feature work merges here first.
+- **`feature/*`** — short-lived feature branches off `development`.
+
+### Workflow
+1. Create a feature branch off `development`: `git checkout -b feature/my-feature development`
+2. Make commits with clear, descriptive messages following conventional commits (e.g., `feat:`, `fix:`, `docs:`, `chore:`, `refactor:`)
+3. Open a PR from your feature branch → `development`
+4. After review and merge into `development`, test thoroughly
+5. When `development` is stable and ready for release, open a PR from `development` → `main`
+6. After merging to `main`, create a GitHub release with a version tag (e.g., `v1.2.0`)
+7. Fast-forward `development` to match `main` after the merge: `git checkout development && git merge main --ff-only`
+
+### Commit Messages
+Use **conventional commit** format:
+- `feat: add new command for X` — new feature
+- `fix: handle null camera response` — bug fix
+- `docs: update CLAUDE.md with new API endpoints` — documentation only
+- `chore: add .superpowers/ to gitignore` — maintenance, no code change
+- `refactor: extract photo capture into utility` — code restructure, no behavior change
+
+### Versioning (Semantic Versioning)
+- **Major** (`v2.0.0`) — breaking changes, major rewrites
+- **Minor** (`v1.1.0`) — new features, backward-compatible
+- **Patch** (`v1.0.1`) — bug fixes, small improvements
+
+### Rules
+- Never force-push to `main` or `development`
+- Never commit directly to `main` — always go through a PR
+- Always ensure `development` and `main` are in sync after a release (fast-forward merge)
+- Run `bun run typecheck` before opening a PR
+- Keep PRs focused — one feature or fix per PR, not kitchen-sink merges
+- Delete feature branches after they are merged
 
 ## Adding a New Command
 
