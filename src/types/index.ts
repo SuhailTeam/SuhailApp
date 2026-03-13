@@ -60,6 +60,19 @@ export interface FaceRecognitionResult {
   isKnown: boolean;
 }
 
+/** Single face match within a multi-face recognition result */
+export interface FaceMatch {
+  name: string | null;
+  confidence: number;
+  isKnown: boolean;
+}
+
+/** Result from recognizing ALL faces in an image */
+export interface MultiFaceResult {
+  faces: FaceMatch[];
+  totalDetected: number;
+}
+
 /** Face enrollment data stored in memory */
 export interface FaceRecord {
   name: string;

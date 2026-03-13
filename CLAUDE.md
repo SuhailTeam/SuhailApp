@@ -376,9 +376,9 @@ suhail/
 │   ├── commands/
 │   │   ├── base-command.ts             # AbstractCommandHandler — shared try/catch, photo capture, error speech
 │   │   ├── command-router.ts           # LLM intent classification (OpenRouter) + keyword fallback
-│   │   ├── scene-summarize.ts          # "Describe my surroundings" -> photo -> vision LLM -> speak
+│   │   ├── scene-summarize.ts          # "Describe my surroundings" -> photo -> face recognition -> vision LLM (with names) -> speak
 │   │   ├── ocr-read-text.ts            # "Read this text" -> photo -> vision LLM OCR -> speak
-│   │   ├── face-recognize.ts           # "Who is this?" -> photo -> AWS Rekognition -> speak name
+│   │   ├── face-recognize.ts           # "Who is this?" -> photo -> multi-face AWS Rekognition -> speak all names
 │   │   ├── face-enroll.ts              # "Enroll this person" -> photo -> ask name -> save (stateful, 2-step)
 │   │   ├── find-object.ts              # "Find my keys" -> photo -> object detection -> speak location
 │   │   ├── currency-recognize.ts       # "Count money" -> photo -> vision LLM -> speak denomination
@@ -394,7 +394,7 @@ suhail/
 │   ├── utils/
 │   │   ├── config.ts                   # Environment variables (all from process.env with defaults)
 │   │   ├── logger.ts                   # Logger class with tag-based [Tag] prefix logging
-│   │   ├── image-utils.ts              # capturePhoto(session) -> base64 string, base64 helpers
+│   │   ├── image-utils.ts              # capturePhoto(session) -> base64 string, cropFace() for multi-face, base64 helpers
 │   │   ├── transcription-filter.ts     # Validates transcriptions (rejects garbled/wrong-script text)
 │   │   └── transcription-normalizer.ts # LLM-based script normalization (Arabic-script English → Latin)
 │   └── types/
@@ -535,11 +535,12 @@ Common messages are defined in `src/services/tts-service.ts` as the `messages` o
 ### AI Handler (ai-handler.ts)
 Facade class that routes to specific services. All command handlers use this instead of calling services directly.
 
-Methods: `describeScene()`, `readText()`, `recognizeFace()`, `enrollFace()`, `listFaces()`, `deleteFace()`, `renameFace()`, `findObject()`, `recognizeCurrency()`, `answerVisualQuestion()`, `detectColor()`, `loadPersistedFaces()`
+Methods: `describeScene()`, `describeSceneWithFaces()`, `readText()`, `recognizeFace()`, `recognizeAllFaces()`, `enrollFace()`, `listFaces()`, `deleteFace()`, `renameFace()`, `findObject()`, `recognizeCurrency()`, `answerVisualQuestion()`, `detectColor()`, `loadPersistedFaces()`
 
 ### Vision Service (vision-service.ts) — WORKING
-Uses **OpenRouter API** with configurable model (default: `google/gemini-2.5-flash-lite`, via `VISION_MODEL` env var). All 6 vision functions delegate to a shared `callVisionAPI` helper (extracted fetch boilerplate) with explicit `max_tokens` set. Handles 6 vision tasks:
+Uses **OpenRouter API** with configurable model (default: `google/gemini-2.5-flash-lite`, via `VISION_MODEL` env var). All vision functions delegate to a shared `callVisionAPI` helper (extracted fetch boilerplate) with explicit `max_tokens` set. Handles 7 vision tasks:
 - `describeScene(base64)` — scene description for blind users
+- `describeSceneWithFaces(base64, knownNames)` — scene description with known face names injected into the prompt, so the LLM naturally uses names (e.g., "Abdullah is on your left") instead of generic descriptions
 - `answerVisualQuestion(base64, question)` — VQA
 - `recognizeCurrency(base64)` — money denomination
 - `detectObject(base64, targetName)` — object location (e.g., "to your right, on the table")
@@ -553,7 +554,8 @@ All calls include bilingual prompt support (ar/en based on config). Images sent 
 
 ### Face Service (face-service.ts) — WORKING
 Uses **AWS Rekognition** with local file storage for metadata and photos:
-- `recognizeFace(base64)` — search Rekognition collection, return best match
+- `recognizeFace(base64)` — search Rekognition collection, return single best match (used by face enrollment)
+- `recognizeAllFaces(base64)` — detect ALL faces via `DetectFacesCommand`, crop each with `sharp`, search individually via `SearchFacesByImageCommand`. Returns `MultiFaceResult { faces: FaceMatch[], totalDetected }`. Optimizes single-face case (no cropping). Caps at 10 faces, skips tiny bounding boxes (<3% of image), runs per-face searches in parallel via `Promise.allSettled()`
 - `enrollFace(name, base64)` — index face into collection + save photo to `data/faces/`
 - `listFaces()` — enumerate all enrolled faces with metadata
 - `deleteFace(faceId)` — remove from Rekognition + local storage
@@ -611,7 +613,7 @@ All core features are **fully implemented** with real AI backends. The app is pr
 - Button press + swipe gesture handling with interrupt support
 - All 8 command handlers with real AI backends
 - **Vision services** — OpenRouter/Gemini for scene description, VQA, currency, object detection, color, OCR
-- **Face recognition** — AWS Rekognition with persistent storage (collection + local files)
+- **Face recognition** — AWS Rekognition with persistent storage (collection + local files). Supports **multi-face detection** (DetectFaces + per-face crop via `sharp` + SearchFacesByImage). Scene summarization integrates face recognition to mention known people by name
 - **Face enrollment** — stateful 2-step flow with TTS echo detection, timeouts, and concurrency locks
 - Bilingual TTS (Arabic/English) with repeat-last-response support
 - Transcription filtering (garbled text, wrong script, low confidence)

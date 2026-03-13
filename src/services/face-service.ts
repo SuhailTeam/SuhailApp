@@ -4,6 +4,7 @@ import {
   CreateCollectionCommand,
   DeleteFacesCommand,
   DescribeCollectionCommand,
+  DetectFacesCommand,
   IndexFacesCommand,
   ListFacesCommand,
   RekognitionClient,
@@ -12,7 +13,8 @@ import {
 } from "@aws-sdk/client-rekognition";
 import { config } from "../utils/config";
 import { Logger } from "../utils/logger";
-import type { FaceRecognitionResult } from "../types";
+import { cropFace } from "../utils/image-utils";
+import type { FaceRecognitionResult, MultiFaceResult, FaceMatch } from "../types";
 
 const logger = new Logger("FaceService");
 
@@ -263,6 +265,96 @@ export async function deleteFace(faceId: string): Promise<void> {
   const meta = await readMetadata();
   delete meta[faceId];
   await writeMetadata(meta);
+}
+
+/**
+ * Recognizes ALL faces in an image using DetectFaces + per-face SearchFacesByImage.
+ * Returns an array of matches and the total number of faces detected.
+ */
+export async function recognizeAllFaces(imageBase64: string): Promise<MultiFaceResult> {
+  await ensureCollectionReady();
+
+  const imageBytes = Buffer.from(imageBase64, "base64");
+
+  // Step 1: Detect all faces in the image
+  const detectResponse = await rekognition.send(new DetectFacesCommand({
+    Image: { Bytes: imageBytes },
+    Attributes: ["DEFAULT"],
+  }));
+
+  const detectedFaces = detectResponse.FaceDetails ?? [];
+  if (detectedFaces.length === 0) {
+    logger.info("No faces detected in image");
+    return { faces: [], totalDetected: 0 };
+  }
+
+  logger.info(`Detected ${detectedFaces.length} face(s) in image`);
+
+  // Step 2: If single face, use the existing optimized path (no cropping needed)
+  if (detectedFaces.length === 1) {
+    const result = await recognizeFace(imageBase64);
+    return {
+      faces: [{ name: result.name, confidence: result.confidence, isKnown: result.isKnown }],
+      totalDetected: 1,
+    };
+  }
+
+  // Step 3: Multiple faces — crop each and search individually (cap at 10)
+  const threshold = getSimilarityThreshold();
+  const meta = await readMetadata();
+  const facesToProcess = detectedFaces.slice(0, 10);
+
+  const results = await Promise.allSettled(
+    facesToProcess.map(async (face): Promise<FaceMatch> => {
+      const box = face.BoundingBox;
+      if (!box || !box.Left || !box.Top || !box.Width || !box.Height) {
+        return { name: null, confidence: 0, isKnown: false };
+      }
+
+      // Skip faces with bounding boxes too small for Rekognition (< 40px estimated)
+      if (box.Width < 0.03 || box.Height < 0.03) {
+        logger.info("Skipping face with very small bounding box");
+        return { name: null, confidence: 0, isKnown: false };
+      }
+
+      try {
+        const croppedBase64 = await cropFace(imageBase64, {
+          Left: box.Left, Top: box.Top, Width: box.Width, Height: box.Height,
+        });
+
+        const searchResponse = await rekognition.send(new SearchFacesByImageCommand({
+          CollectionId: collectionId,
+          Image: { Bytes: Buffer.from(croppedBase64, "base64") },
+          MaxFaces: 1,
+          FaceMatchThreshold: threshold,
+        }));
+
+        const bestMatch = searchResponse.FaceMatches?.[0];
+        if (!bestMatch?.Face) {
+          return { name: null, confidence: 0, isKnown: false };
+        }
+
+        const confidence = (bestMatch.Similarity ?? 0) / 100;
+        const faceId = bestMatch.Face.FaceId;
+        const rawId = bestMatch.Face.ExternalImageId || null;
+        const name = faceId
+          ? (meta[faceId]?.name ?? (rawId ? decodeName(rawId) : null))
+          : (rawId ? decodeName(rawId) : null);
+
+        return { name, confidence, isKnown: Boolean(name) };
+      } catch (err) {
+        logger.warn("Failed to search face in crop:", err);
+        return { name: null, confidence: 0, isKnown: false };
+      }
+    })
+  );
+
+  const faces: FaceMatch[] = results.map(r =>
+    r.status === "fulfilled" ? r.value : { name: null, confidence: 0, isKnown: false }
+  );
+
+  logger.info(`Multi-face recognition complete: ${faces.filter(f => f.isKnown).length} known, ${faces.filter(f => !f.isKnown).length} unknown`);
+  return { faces, totalDetected: detectedFaces.length };
 }
 
 export async function renameFace(faceId: string, newName: string): Promise<void> {

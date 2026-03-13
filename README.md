@@ -91,16 +91,16 @@ After merging to `development` and testing, open a PR from `development` → `ma
 
 | Feature | Command | AI Backend | Status |
 |---------|---------|------------|--------|
-| Scene Summarization | "Describe my surroundings" | OpenRouter / Gemini | Working |
+| Scene Summarization | "Describe my surroundings" | OpenRouter / Gemini + AWS Rekognition | Working |
 | OCR / Read Text | "Read this text" | OpenRouter / Gemini | Working |
-| Face Recognition | "Who is in front of me?" | AWS Rekognition | Working |
+| Face Recognition | "Who is in front of me?" | AWS Rekognition (multi-face) | Working |
 | Face Enrollment | "Enroll this person" | AWS Rekognition | Working |
 | Find Object | "Find my keys" | OpenRouter / Gemini | Working |
 | Currency Recognition | "Count money" | OpenRouter / Gemini | Working |
 | Visual Question Answering | Any question | OpenRouter / Gemini | Working |
 | Color Detection | "What color is this?" | OpenRouter / Gemini | Working |
 
-All features use real AI backends. Vision tasks use Google Gemini 2.5 Flash Lite via OpenRouter (configurable via `VISION_MODEL` and `CLASSIFICATION_MODEL` env vars). Face recognition uses AWS Rekognition with persistent storage.
+All features use real AI backends. Vision tasks use Google Gemini 2.5 Flash Lite via OpenRouter (configurable via `VISION_MODEL` and `CLASSIFICATION_MODEL` env vars). Face recognition uses AWS Rekognition with persistent storage. Multi-face detection identifies all people in frame, and scene descriptions integrate face recognition to mention known contacts by name.
 
 ### Recent Improvements
 
@@ -144,9 +144,9 @@ suhail/
 │   ├── commands/
 │   │   ├── base-command.ts             # AbstractCommandHandler base class
 │   │   ├── command-router.ts           # LLM intent classification + keyword fallback
-│   │   ├── scene-summarize.ts          # Scene description
+│   │   ├── scene-summarize.ts          # Scene description with face recognition
 │   │   ├── ocr-read-text.ts            # Text reading (OCR via vision LLM)
-│   │   ├── face-recognize.ts           # Face identification
+│   │   ├── face-recognize.ts           # Multi-face identification
 │   │   ├── face-enroll.ts              # Face enrollment (stateful 2-step)
 │   │   ├── find-object.ts              # Object location
 │   │   ├── currency-recognize.ts       # Currency identification
@@ -162,7 +162,7 @@ suhail/
 │   ├── utils/
 │   │   ├── config.ts                   # Environment config
 │   │   ├── logger.ts                   # Logging utility
-│   │   ├── image-utils.ts              # Image processing helpers
+│   │   ├── image-utils.ts              # Image processing helpers (capture, crop)
 │   │   ├── transcription-filter.ts     # Validates transcriptions (rejects garbled text)
 │   │   └── transcription-normalizer.ts # Script normalization via LLM
 │   └── types/

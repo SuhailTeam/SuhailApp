@@ -5,6 +5,7 @@ import * as faceService from "./face-service";
 import type {
   VisionResponse,
   FaceRecognitionResult,
+  MultiFaceResult,
   ObjectDetectionResult,
   CurrencyResult,
   ColorResult,
@@ -38,6 +39,18 @@ export class AIHandler {
   async recognizeFace(imageBase64: string): Promise<FaceRecognitionResult> {
     logger.info("AI Handler → Face Recognition");
     return faceService.recognizeFace(imageBase64);
+  }
+
+  /** Recognize all faces in a photo */
+  async recognizeAllFaces(imageBase64: string): Promise<MultiFaceResult> {
+    logger.info("AI Handler → Multi-Face Recognition");
+    return faceService.recognizeAllFaces(imageBase64);
+  }
+
+  /** Describe a scene with known face names injected */
+  async describeSceneWithFaces(imageBase64: string, knownNames: string[]): Promise<VisionResponse> {
+    logger.info("AI Handler → Scene Description with Face Context");
+    return visionService.describeSceneWithFaces(imageBase64, knownNames);
   }
 
   /** Enroll a new face with a name */

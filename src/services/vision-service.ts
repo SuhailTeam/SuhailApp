@@ -91,6 +91,38 @@ export async function describeScene(imageBase64: string): Promise<VisionResponse
 }
 
 /**
+ * Sends a photo to OpenRouter for a scene description, with known face names
+ * injected into the prompt so the LLM uses them naturally.
+ */
+export async function describeSceneWithFaces(
+  imageBase64: string,
+  knownNames: string[],
+): Promise<VisionResponse> {
+  logger.info(`Sending image to OpenRouter API with ${knownNames.length} known face(s)...`);
+  try {
+    const namesContext = knownNames.length > 0
+      ? `The following people have been identified in this image: ${knownNames.join(", ")}. Use their names when describing them.`
+      : "";
+
+    const description = await callVisionAPI({
+      prompt: `You are the eyes of a blind person. Describe what's in front of them in 2-3 short sentences. Focus on people, obstacles, and key objects. Skip minor details. ${namesContext} ${langInstruction()}`,
+      imageBase64,
+      maxTokens: 200,
+    });
+    logger.info(`Received face-aware scene description: ${description}`);
+    return {
+      description: description || (config.defaultLanguage === "ar"
+        ? "عذرًا، لم أتمكن من الحصول على وصف للصورة."
+        : "Sorry, I couldn't get a description of the image."),
+      confidence: 0.90,
+    };
+  } catch (error) {
+    logger.error("Failed to connect to OpenRouter API for face-aware scene description", error);
+    throw error;
+  }
+}
+
+/**
  * Sends a photo and a question to a vision LLM for visual question answering.
  */
 export async function answerVisualQuestion(
