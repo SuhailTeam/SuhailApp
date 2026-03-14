@@ -75,6 +75,14 @@ bun run dev
 bun run typecheck
 ```
 
+### Running tests
+```bash
+bun test              # Run all tests once
+bun run test:watch    # Run tests in watch mode (re-runs on file changes)
+```
+
+Tests are located in `src/__tests__/` and use Bun's built-in test runner. No extra dependencies needed.
+
 ### Git workflow
 ```bash
 git checkout development                          # Work on development branch

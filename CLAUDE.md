@@ -397,6 +397,10 @@ suhail/
 │   │   ├── image-utils.ts              # capturePhoto(session) -> base64 string, cropFace() for multi-face, base64 helpers
 │   │   ├── transcription-filter.ts     # Validates transcriptions (rejects garbled/wrong-script text)
 │   │   └── transcription-normalizer.ts # LLM-based script normalization (Arabic-script English → Latin)
+│   ├── __tests__/                          # Bun test files (mirrors src/ structure)
+│   │   ├── utils/                          # Unit tests for utility modules
+│   │   ├── commands/                       # Tests for command routing
+│   │   └── services/                       # Tests for services (settings, TTS, face logic)
 │   └── types/
 │       └── index.ts                    # All shared interfaces and types
 ├── data/
@@ -625,6 +629,7 @@ All core features are **fully implemented** with real AI backends. The app is pr
 - **Face enrollment timestamps** — `enrolledAt` field on face metadata
 - **Landing page** — React + Vite app in `landing/`
 - Logger, config, image utils
+- **Automated test suite** — 150 tests using Bun's built-in test runner (`bun test`), covering transcription filter, settings store, image utils, config, command router, transcription normalizer, TTS service, and face service logic. Uses equivalence partitioning and boundary value analysis.
 
 ### SDK Features Not Yet Used (Available for Future Use)
 - `session.led` — LED feedback (e.g., blink green when processing, red on error)
@@ -751,5 +756,7 @@ bun install           # Install dependencies
 bun run start         # Start server
 bun run dev           # Start with --watch (auto-restart)
 bun run typecheck     # TypeScript type checking
+bun test              # Run all tests
+bun run test:watch    # Run tests in watch mode
 ngrok http 3000       # Expose local server (needed for Mentra connection in local dev)
 ```
