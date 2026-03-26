@@ -394,7 +394,7 @@ suhail/
 │   ├── utils/
 │   │   ├── config.ts                   # Environment variables (all from process.env with defaults)
 │   │   ├── logger.ts                   # Logger class with tag-based [Tag] prefix logging
-│   │   ├── image-utils.ts              # capturePhoto(session) -> base64 string, cropFace() for multi-face, base64 helpers
+│   │   ├── image-utils.ts              # capturePhoto(session) -> base64 string (full resolution), cropFace() for multi-face, base64 helpers
 │   │   ├── transcription-filter.ts     # Validates transcriptions (rejects garbled/wrong-script text)
 │   │   └── transcription-normalizer.ts # LLM-based script normalization (Arabic-script English → Latin)
 │   └── types/
@@ -528,7 +528,7 @@ await speakBilingual(session, { ar: "جاري المعالجة...", en: "Process
 // Selects language based on config.defaultLanguage (from DEFAULT_LANGUAGE env var, default: "ar")
 ```
 
-Common messages are defined in `src/services/tts-service.ts` as the `messages` object: welcome, processing, cameraError, generalError, noResult, repeatNoHistory, listening, received, cancelled, didntCatch, listeningTimeout, unknownCommand, interruptedListening.
+Common messages are defined in `src/services/tts-service.ts` as the `messages` object: welcome, processing, cameraError, generalError, noResult, repeatNoHistory, listening, received, cancelled, didntCatch, listeningTimeout, unknownCommand, interruptedListening, permissionError.
 
 ## Services Layer
 
@@ -572,15 +572,18 @@ Face names are hex-encoded for Rekognition's `ExternalImageId` field. Local `dat
 - `clearLastResponse(sessionId)` — cleanup on session end
 - `localize(message)` — returns string for current language
 - TTS now respects global settings: speech speed, volume, voice preset, and language
+- TTS uses `trackId: 2` for audio track mixing — enables background audio on track 1 without blocking speech
 
 ### Settings Store (settings-store.ts) — WORKING
-Global in-memory settings store for voice and language preferences:
+Persistent settings store for voice and language preferences, backed by `simpleStorage`:
 - `getSettings()` — returns current settings (defensive copy)
-- `updateSettings(partial)` — validates and applies partial updates
+- `updateSettings(partial)` — validates, applies, and persists to `simpleStorage` with `flush()`
+- `initSettingsFromStorage(session)` — loads persisted settings on session start
+- `clearSettingsSession()` — clears session reference on session end
 - Settings: `speechSpeed` (0.5–2.0), `volume` (0.0–1.0), `voicePreset` ("default" | "male" | "female"), `language` ("ar" | "en")
 - All values are validated and clamped to valid ranges
 - Defaults read from `DEFAULT_LANGUAGE` env var; all other defaults are hardcoded
-- In-memory only — resets on server restart (future: persist via `session.simpleStorage`)
+- Settings persist across server restarts via `session.simpleStorage` + `flush()`
 
 ## Environment Variables
 
@@ -619,8 +622,11 @@ All core features are **fully implemented** with real AI backends. The app is pr
 - Transcription filtering (garbled text, wrong script, low confidence)
 - Transcription normalization (Arabic-script English → Latin via LLM)
 - **Companion app** — 4-tab SPA (Status, Activity, Contacts, Settings) at `/webview`
-- **Global settings store** — voice speed, volume, voice preset, language (in-memory)
-- **Battery tracking** — glasses battery level exposed via `/api/status`
+- **Settings persistence** — voice speed, volume, voice preset, language persisted via `simpleStorage` + `flush()` (survives restarts)
+- **Device state tracking** — battery, case battery, charging, WiFi status via reactive `device.state` observables, exposed via `/api/status`
+- **Permission error handling** — `onPermissionError()` speaks a warning when camera/mic permissions are missing
+- **Audio track mixing** — TTS uses dedicated `trackId: 2`, leaving track 1 available for background audio
+- **Full resolution photos** — all camera captures use `"full"` (native sensor resolution) for maximum accuracy
 - **Structured activity log** — enriched with type, command, result fields
 - **Face enrollment timestamps** — `enrolledAt` field on face metadata
 - **Landing page** — React + Vite app in `landing/`
@@ -629,7 +635,6 @@ All core features are **fully implemented** with real AI backends. The app is pr
 ### SDK Features Not Yet Used (Available for Future Use)
 - `session.led` — LED feedback (e.g., blink green when processing, red on error)
 - `session.location` — GPS-aware features (e.g., "where am I?")
-- `session.simpleStorage` — Persistent storage for user preferences (could persist settings across restarts)
 - `session.capabilities` — Runtime hardware detection
 - `session.events.onHeadPosition()` — Trigger actions on head up/down
 - `session.events.onPhoneNotifications()` — Read phone notifications aloud
@@ -667,7 +672,7 @@ The app serves REST endpoints via Express (from `AppServer.getExpressApp()`), us
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `GET` | `/api/status` | Online status, session count, uptime, battery level, charging state |
+| `GET` | `/api/status` | Online status, session count, uptime, battery, charging, case battery, case charging, WiFi connected |
 | `GET` | `/api/activity` | Rolling activity log (last 20 events, structured with type/command/result) |
 | `GET` | `/api/faces` | List all enrolled faces (`{ faces, count }` — each face has name, faceId, hasPhoto, enrolledAt) |
 | `GET` | `/api/faces/:faceId/photo` | Download enrollment photo for a face |
