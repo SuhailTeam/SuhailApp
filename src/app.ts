@@ -18,7 +18,7 @@ import type { CommandHandler, CommandType, ListeningState } from "./types";
 import { isValidTranscription } from "./utils/transcription-filter";
 import { normalizeTranscription } from "./utils/transcription-normalizer";
 import { capturePhoto } from "./utils/image-utils";
-import { getSettings, updateSettings } from "./services/settings-store";
+import { getSettings, updateSettings, initSettingsFromStorage, clearSettingsSession } from "./services/settings-store";
 
 const logger = new Logger("SuhailApp");
 
@@ -241,6 +241,9 @@ export class SuhailApp extends AppServer {
     this.connectedSessions.add(sessionId);
     this.logActivity(`جلسة جديدة (${userId})`, "system", "session-start");
 
+    // Load persisted settings from simpleStorage
+    await initSettingsFromStorage(session);
+
     // Welcome the user
     await speakBilingual(session, messages.welcome);
 
@@ -328,6 +331,7 @@ export class SuhailApp extends AppServer {
     this.deactivateListening(sessionId);
     this.speakingSessions.delete(sessionId);
     clearLastResponse(sessionId);
+    clearSettingsSession();
     this.logActivity(`انتهت الجلسة (${reason})`, "system", "session-stop");
     logger.info(`Session stopped: ${sessionId} (user: ${userId}, reason: ${reason})`);
   }
