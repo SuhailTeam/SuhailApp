@@ -47,6 +47,7 @@ export async function speak(session: AppSession, text: string, sessionId?: strin
         speed: settings.speechSpeed,
       },
       volume: settings.volume,
+      trackId: 2,
     });
     if (sessionId) {
       lastResponses.set(sessionId, text);
