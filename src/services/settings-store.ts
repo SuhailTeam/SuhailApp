@@ -58,12 +58,16 @@ export function updateSettings(partial: Partial<AppSettings>): AppSettings {
  * Falls back to defaults if no stored settings exist.
  */
 export async function initSettingsFromStorage(session: AppSession): Promise<void> {
-  activeSession = session;
   try {
     const stored = await session.simpleStorage.get(STORAGE_KEY);
     if (stored) {
       const parsed = JSON.parse(stored);
-      updateSettings(parsed);
+      // Apply loaded values directly (not via updateSettings) to avoid writing back
+      // the same data we just loaded
+      if (parsed.speechSpeed !== undefined) settings.speechSpeed = Math.max(0.5, Math.min(2.0, parsed.speechSpeed));
+      if (parsed.volume !== undefined) settings.volume = Math.max(0.0, Math.min(1.0, parsed.volume));
+      if (parsed.voicePreset !== undefined && ["default", "male", "female"].includes(parsed.voicePreset)) settings.voicePreset = parsed.voicePreset;
+      if (parsed.language !== undefined && ["ar", "en"].includes(parsed.language)) settings.language = parsed.language;
       logger.info("Settings loaded from simpleStorage");
     } else {
       logger.info("No persisted settings found, using defaults");
@@ -71,6 +75,8 @@ export async function initSettingsFromStorage(session: AppSession): Promise<void
   } catch (e) {
     logger.warn("Failed to load settings from storage:", e);
   }
+  // Set activeSession AFTER loading so updateSettings doesn't write-back during load
+  activeSession = session;
 }
 
 /** Clears the session reference when the session ends. */
