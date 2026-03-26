@@ -47,6 +47,7 @@ export async function speak(session: AppSession, text: string, sessionId?: strin
         speed: settings.speechSpeed,
       },
       volume: settings.volume,
+      trackId: 2,
     });
     if (sessionId) {
       lastResponses.set(sessionId, text);
@@ -127,5 +128,9 @@ export const messages = {
   interruptedListening: {
     ar: "تمت المقاطعة. عدنا لوضع الاستماع.",
     en: "Interrupted. Back to listening mode.",
+  },
+  permissionError: {
+    ar: "يرجى تفعيل صلاحيات الكاميرا والميكروفون في تطبيق منترا.",
+    en: "Please enable camera and microphone permissions in the Mentra app.",
   },
 } satisfies Record<string, BilingualMessage>;
