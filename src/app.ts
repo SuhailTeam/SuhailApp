@@ -18,7 +18,7 @@ import type { CommandHandler, CommandType, ListeningState } from "./types";
 import { isValidTranscription } from "./utils/transcription-filter";
 import { normalizeTranscription } from "./utils/transcription-normalizer";
 import { capturePhoto } from "./utils/image-utils";
-import { getSettings, updateSettings } from "./services/settings-store";
+import { getSettings, updateSettings, initSettingsFromStorage, clearSettingsSession } from "./services/settings-store";
 
 const logger = new Logger("SuhailApp");
 
@@ -85,8 +85,14 @@ export class SuhailApp extends AppServer {
   /** Server start time for uptime calculation */
   private readonly startTime = Date.now();
 
-  /** Most recent battery report from the glasses */
-  private glassesBattery: { level: number; charging: boolean } | null = null;
+  /** Most recent device state from the glasses (battery, case, wifi) */
+  private deviceState: {
+    battery: number | null;
+    charging: boolean | null;
+    caseBattery: number | null;
+    caseCharging: boolean | null;
+    wifiConnected: boolean | null;
+  } = { battery: null, charging: null, caseBattery: null, caseCharging: null, wifiConnected: null };
 
   constructor() {
     super({
@@ -133,8 +139,11 @@ export class SuhailApp extends AppServer {
         online: true,
         sessions: this.connectedSessions.size,
         uptime: Math.floor((Date.now() - this.startTime) / 1000),
-        battery: this.glassesBattery?.level ?? null,
-        charging: this.glassesBattery?.charging ?? null,
+        battery: this.deviceState.battery,
+        charging: this.deviceState.charging,
+        caseBattery: this.deviceState.caseBattery,
+        caseCharging: this.deviceState.caseCharging,
+        wifiConnected: this.deviceState.wifiConnected,
       });
     });
 
@@ -232,6 +241,9 @@ export class SuhailApp extends AppServer {
     this.connectedSessions.add(sessionId);
     this.logActivity(`جلسة جديدة (${userId})`, "system", "session-start");
 
+    // Load persisted settings from simpleStorage
+    await initSettingsFromStorage(session);
+
     // Welcome the user
     await speakBilingual(session, messages.welcome);
 
@@ -281,9 +293,25 @@ export class SuhailApp extends AppServer {
       await this.handleButtonPress(session, sessionId, event);
     });
 
-    // Track battery level from the glasses
-    session.events.onGlassesBattery((data) => {
-      this.glassesBattery = { level: data.level, charging: data.charging };
+    // Track device state via reactive observables (battery, case, wifi)
+    const snapshot = session.device.state.getSnapshot();
+    this.deviceState = {
+      battery: snapshot.batteryLevel ?? null,
+      charging: snapshot.charging ?? null,
+      caseBattery: snapshot.caseBatteryLevel ?? null,
+      caseCharging: snapshot.caseCharging ?? null,
+      wifiConnected: snapshot.wifiConnected ?? null,
+    };
+    session.device.state.batteryLevel.onChange((level) => { this.deviceState.battery = level; });
+    session.device.state.charging.onChange((charging) => { this.deviceState.charging = charging; });
+    session.device.state.caseBatteryLevel.onChange((level) => { this.deviceState.caseBattery = level; });
+    session.device.state.caseCharging.onChange((charging) => { this.deviceState.caseCharging = charging; });
+    session.device.state.wifiConnected.onChange((connected) => { this.deviceState.wifiConnected = connected; });
+
+    // Handle permission errors (camera/mic not granted)
+    session.events.onPermissionError(async (data) => {
+      logger.warn(`[${sessionId}] Permission error: ${JSON.stringify(data)}`);
+      await speakBilingual(session, messages.permissionError, sessionId);
     });
 
     // Listen for touch/swipe gestures on the swipe pad
@@ -303,6 +331,7 @@ export class SuhailApp extends AppServer {
     this.deactivateListening(sessionId);
     this.speakingSessions.delete(sessionId);
     clearLastResponse(sessionId);
+    clearSettingsSession();
     this.logActivity(`انتهت الجلسة (${reason})`, "system", "session-stop");
     logger.info(`Session stopped: ${sessionId} (user: ${userId}, reason: ${reason})`);
   }

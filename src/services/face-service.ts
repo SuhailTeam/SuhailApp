@@ -40,8 +40,13 @@ function getSimilarityThreshold(): number {
 
 async function ensureCollectionReady(): Promise<void> {
   if (collectionReadyPromise) {
-    await collectionReadyPromise;
-    return;
+    try {
+      await collectionReadyPromise;
+      return;
+    } catch {
+      // Previous attempt failed — reset and retry
+      collectionReadyPromise = null;
+    }
   }
 
   collectionReadyPromise = (async () => {
@@ -126,34 +131,40 @@ export async function recognizeFace(imageBase64: string): Promise<FaceRecognitio
   await ensureCollectionReady();
   const threshold = getSimilarityThreshold();
 
-  const response = await rekognition.send(new SearchFacesByImageCommand({
-    CollectionId: collectionId,
-    Image: { Bytes: Buffer.from(imageBase64, "base64") },
-    MaxFaces: 1,
-    FaceMatchThreshold: threshold,
-  }));
+  try {
+    const response = await rekognition.send(new SearchFacesByImageCommand({
+      CollectionId: collectionId,
+      Image: { Bytes: Buffer.from(imageBase64, "base64") },
+      MaxFaces: 1,
+      FaceMatchThreshold: threshold,
+    }));
 
-  const bestMatch = response.FaceMatches?.[0];
-  if (!bestMatch || !bestMatch.Face) {
-    logger.info("No matching face found in Rekognition");
+    const bestMatch = response.FaceMatches?.[0];
+    if (!bestMatch || !bestMatch.Face) {
+      logger.info("No matching face found in Rekognition");
+      return { name: null, confidence: 0, isKnown: false };
+    }
+
+    const confidence = (bestMatch.Similarity ?? 0) / 100;
+    const faceId = bestMatch.Face.FaceId;
+    const rawId = bestMatch.Face.ExternalImageId || null;
+
+    // Prefer local metadata name (supports renames) over Rekognition's hex-encoded name
+    let name: string | null = null;
+    if (faceId) {
+      const meta = await readMetadata();
+      name = meta[faceId]?.name ?? (rawId ? decodeName(rawId) : null);
+    } else {
+      name = rawId ? decodeName(rawId) : null;
+    }
+
+    logger.info(`Matched ${name ?? "unknown"} with similarity=${(bestMatch.Similarity ?? 0).toFixed(2)}%`);
+    return { name, confidence, isKnown: Boolean(name) };
+  } catch (error: any) {
+    // InvalidParameterException = no searchable face in image; other errors also non-fatal
+    logger.warn(`Face search failed: ${error?.name ?? error?.message ?? error}`);
     return { name: null, confidence: 0, isKnown: false };
   }
-
-  const confidence = (bestMatch.Similarity ?? 0) / 100;
-  const faceId = bestMatch.Face.FaceId;
-  const rawId = bestMatch.Face.ExternalImageId || null;
-
-  // Prefer local metadata name (supports renames) over Rekognition's hex-encoded name
-  let name: string | null = null;
-  if (faceId) {
-    const meta = await readMetadata();
-    name = meta[faceId]?.name ?? (rawId ? decodeName(rawId) : null);
-  } else {
-    name = rawId ? decodeName(rawId) : null;
-  }
-
-  logger.info(`Matched ${name ?? "unknown"} with similarity=${(bestMatch.Similarity ?? 0).toFixed(2)}%`);
-  return { name, confidence, isKnown: Boolean(name) };
 }
 
 /**
@@ -277,10 +288,20 @@ export async function recognizeAllFaces(imageBase64: string): Promise<MultiFaceR
   const imageBytes = Buffer.from(imageBase64, "base64");
 
   // Step 1: Detect all faces in the image
-  const detectResponse = await rekognition.send(new DetectFacesCommand({
-    Image: { Bytes: imageBytes },
-    Attributes: ["DEFAULT"],
-  }));
+  let detectResponse;
+  try {
+    detectResponse = await rekognition.send(new DetectFacesCommand({
+      Image: { Bytes: imageBytes },
+      Attributes: ["DEFAULT"],
+    }));
+  } catch (error: any) {
+    if (error?.name === "AccessDeniedException") {
+      logger.warn("DetectFaces not permitted — falling back to single-face search");
+      const result = await recognizeFace(imageBase64);
+      return { faces: [result], totalDetected: 1 };
+    }
+    throw error;
+  }
 
   const detectedFaces = detectResponse.FaceDetails ?? [];
   if (detectedFaces.length === 0) {
@@ -292,11 +313,16 @@ export async function recognizeAllFaces(imageBase64: string): Promise<MultiFaceR
 
   // Step 2: If single face, use the existing optimized path (no cropping needed)
   if (detectedFaces.length === 1) {
-    const result = await recognizeFace(imageBase64);
-    return {
-      faces: [{ name: result.name, confidence: result.confidence, isKnown: result.isKnown }],
-      totalDetected: 1,
-    };
+    try {
+      const result = await recognizeFace(imageBase64);
+      return {
+        faces: [{ name: result.name, confidence: result.confidence, isKnown: result.isKnown }],
+        totalDetected: 1,
+      };
+    } catch (error) {
+      logger.warn("Single-face recognition failed:", error);
+      return { faces: [{ name: null, confidence: 0, isKnown: false }], totalDetected: 1 };
+    }
   }
 
   // Step 3: Multiple faces — crop each and search individually (cap at 10)
