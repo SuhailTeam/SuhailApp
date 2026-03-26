@@ -128,4 +128,8 @@ export const messages = {
     ar: "تمت المقاطعة. عدنا لوضع الاستماع.",
     en: "Interrupted. Back to listening mode.",
   },
+  permissionError: {
+    ar: "يرجى تفعيل صلاحيات الكاميرا والميكروفون في تطبيق منترا.",
+    en: "Please enable camera and microphone permissions in the Mentra app.",
+  },
 } satisfies Record<string, BilingualMessage>;

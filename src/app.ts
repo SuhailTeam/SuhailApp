@@ -305,6 +305,12 @@ export class SuhailApp extends AppServer {
     session.device.state.caseCharging.onChange((charging) => { this.deviceState.caseCharging = charging; });
     session.device.state.wifiConnected.onChange((connected) => { this.deviceState.wifiConnected = connected; });
 
+    // Handle permission errors (camera/mic not granted)
+    session.events.onPermissionError(async (data) => {
+      logger.warn(`[${sessionId}] Permission error: ${JSON.stringify(data)}`);
+      await speakBilingual(session, messages.permissionError, sessionId);
+    });
+
     // Listen for touch/swipe gestures on the swipe pad
     session.events.onTouchEvent(async (event) => {
       logger.info(`[${sessionId}] Touch event: gesture="${event.gesture_name}" device="${event.device_model}"`);
