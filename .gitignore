@@ -5,6 +5,7 @@ dist/
 .DS_Store
 bun.lock
 data/
+public/cues/
 
 venv/
 .claude/

@@ -35,4 +35,10 @@ export const config = {
 
   /** Minimum transcription confidence to accept (0-1). Below this is treated as noise. */
   minTranscriptionConfidence: parseFloat(process.env.MIN_CONFIDENCE || "0.55"),
+
+  /** Publicly-reachable base URL of this server (no trailing slash). Used to serve
+   * generated audio cues (./public/cues/*.wav) to the glasses via playAudio.
+   * Dev: your ngrok URL. Prod: Railway URL. When set, short chimes replace the
+   * "Listening" / "Got it" / "Cancelled" TTS cues (saves ~4-5s per command). */
+  publicBaseUrl: (process.env.PUBLIC_BASE_URL || "").replace(/\/+$/, ""),
 } as const;

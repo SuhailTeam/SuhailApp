@@ -53,7 +53,7 @@ export async function cropFace(
 export async function capturePhoto(session: AppSession): Promise<string | null> {
   try {
     const size = "large";
-    const compress = "none";
+    const compress = "medium";
     const CAPTURE_TIMEOUT_MS = 10_000;
     logger.info(`Capturing photo from glasses camera (size=${size}, compress=${compress})...`);
     const photoData = await Promise.race([

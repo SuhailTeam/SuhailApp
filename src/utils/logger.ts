@@ -1,6 +1,6 @@
 /** Simple logging utility with prefixed tags */
 export class Logger {
-  constructor(private tag: string) {}
+  constructor(public readonly tag: string) {}
 
   info(message: string, ...args: unknown[]): void {
     console.log(`[${this.tag}] ℹ ${message}`, ...args);

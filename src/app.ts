@@ -12,12 +12,14 @@ import { ColorDetectCommand } from "./commands/color-detect";
 import { AIHandler } from "./services/ai-handler";
 import { getFacePhotoPath } from "./services/face-service";
 import { speak, speakBilingual, messages, getLastResponse, clearLastResponse } from "./services/tts-service";
+import { ensureCuesGenerated, playCue } from "./services/cue-service";
 import { config } from "./utils/config";
 import { Logger } from "./utils/logger";
 import type { CommandHandler, CommandType, ListeningState } from "./types";
 import { isValidTranscription } from "./utils/transcription-filter";
 import { normalizeTranscription } from "./utils/transcription-normalizer";
 import { capturePhoto } from "./utils/image-utils";
+import { startTimeline, endTimeline, mark } from "./utils/timeline";
 import { getSettings, updateSettings, initSettingsFromStorage, clearSettingsSession } from "./services/settings-store";
 
 const logger = new Logger("SuhailApp");
@@ -71,7 +73,7 @@ export class SuhailApp extends AppServer {
   private static readonly TTS_ECHO_BUFFER_MS = 1_500;
 
   /** Grace period after activating listening to let the STT pipeline flush old audio (ms) */
-  private static readonly LISTENING_GRACE_MS = 2_000;
+  private static readonly LISTENING_GRACE_MS = 1_000;
 
   /** Rolling log of the last 20 activity events (served to the mini app UI) */
   private activityLog: Array<{
@@ -119,9 +121,10 @@ export class SuhailApp extends AppServer {
     logger.info("SuhailApp initialized with all command handlers");
   }
 
-  /** Loads persisted face records before the server starts accepting sessions. */
+  /** Loads persisted face records and generates audio cues before the server starts accepting sessions. */
   async initialize(): Promise<void> {
     await this.ai.loadPersistedFaces();
+    await ensureCuesGenerated();
   }
 
   /**
@@ -131,8 +134,11 @@ export class SuhailApp extends AppServer {
   private registerApiRoutes(): void {
     const expressApp = this.getExpressApp();
     // Enable JSON body parsing for API routes (needed for PUT /api/faces/:faceId)
-    const { json } = require("express");
+    const { json, static: serveStatic } = require("express");
     expressApp.use("/api", json());
+
+    // Serve generated audio cues at /cues/*.wav (consumed by session.audio.playAudio)
+    expressApp.use("/cues", serveStatic("./public/cues", { maxAge: "1h" }));
 
     expressApp.get("/api/status", (_req: any, res: any) => {
       res.json({
@@ -280,8 +286,11 @@ export class SuhailApp extends AppServer {
         return;
       }
 
+      mark(sessionId, "transcription_final");
+
       // Normalize script mismatches (e.g., Arabic-script English transliterations)
       const normalizedText = await normalizeTranscription(data.text, config.defaultLanguage);
+      mark(sessionId, "normalize_done");
 
       logger.info(`[${sessionId}] Transcription (confidence=${confidence.toFixed(2)}): "${normalizedText}"`);
       await this.handleTranscription(session, sessionId, normalizedText);
@@ -387,11 +396,16 @@ export class SuhailApp extends AppServer {
       listeningEntry.state = "processing";
       listeningEntry.abortController = abortController;
 
-      // Acknowledge receipt
-      await speakBilingual(session, messages.received, sessionId);
+      // Kick off routing in parallel with the "Got it" acknowledgment so the
+      // 500-1500ms LLM classification overlaps the cue playback.
+      mark(sessionId, "got_it_start");
+      const routePromise = routeCommand(text, abortController.signal);
+      routePromise.catch(() => {}); // attach handler to suppress unhandled-rejection if route settles before we await
+      await playCue(session, "got-it", sessionId);
+      mark(sessionId, "got_it_done");
 
-      // Route the transcription to the correct command (LLM-based, with keyword fallback)
-      const route = await routeCommand(text, abortController.signal);
+      const route = await routePromise;
+      mark(sessionId, "route_done");
       if (!route) {
         this.deactivateListening(sessionId);
         return;
@@ -427,17 +441,26 @@ export class SuhailApp extends AppServer {
         preCapture = result || undefined;
         logger.info(`[${sessionId}] Pre-capture ${result ? "ready" : "not ready, falling through"}`);
       }
+      mark(sessionId, preCapture ? "pre_capture_ready" : "pre_capture_miss");
 
-      // Enable TTS echo guard before the handler speaks, clear after + buffer
+      // Enable TTS echo guard before the handler speaks, clear after + buffer.
+      // Capture the entry ref so the finally below can tell if a concurrent
+      // forward-swipe interrupted us and started a fresh listening session —
+      // in that case we must NOT clobber the new session's state.
+      const ownedEntry = listeningEntry;
       this.speakingSessions.add(sessionId);
       try {
         await handler.execute(session, { ...route.params, _sessionId: sessionId, ...(preCapture ? { _preCapture: preCapture } : {}) });
       } finally {
-        this.deactivateListening(sessionId);
-        setTimeout(() => {
-          this.speakingSessions.delete(sessionId);
-          logger.info(`[${sessionId}] TTS echo guard lifted`);
-        }, SuhailApp.TTS_ECHO_BUFFER_MS);
+        if (this.listeningSessions.get(sessionId) === ownedEntry) {
+          this.deactivateListening(sessionId);
+          setTimeout(() => {
+            this.speakingSessions.delete(sessionId);
+            logger.info(`[${sessionId}] TTS echo guard lifted`);
+          }, SuhailApp.TTS_ECHO_BUFFER_MS);
+        } else {
+          logger.info(`[${sessionId}] Handler finished after interrupt — leaving new session intact`);
+        }
       }
     } catch (error) {
       logger.error(`[${sessionId}] Error handling transcription:`, error);
@@ -452,10 +475,27 @@ export class SuhailApp extends AppServer {
   private async activateListening(session: AppSession, sessionId: string): Promise<void> {
     const existing = this.listeningSessions.get(sessionId);
 
-    // If already active or processing, treat as cancellation
-    if (existing && (existing.state === "active" || existing.state === "processing")) {
-      await this.cancelListening(session, sessionId);
-      return;
+    if (existing) {
+      if (existing.state === "processing") {
+        // Mid-command (likely speaking the result) — silence the TTS track, abort
+        // the in-flight handler, and fall through to a fresh activation. This is
+        // the "shut up and listen again" path: no "Cancelled" cue, no friction.
+        logger.info(`[${sessionId}] Forward swipe during processing — interrupting`);
+        try { session.audio.stopAudio(2); } catch {}
+        existing.abortController?.abort();
+        clearTimeout(existing.timer);
+        this.listeningSessions.delete(sessionId);
+        // Clear the echo guard immediately — otherwise the next transcription
+        // (the new command the user is about to speak) gets dropped during the
+        // 1500ms buffer the finished handler will eventually schedule.
+        this.speakingSessions.delete(sessionId);
+        mark(sessionId, "interrupted_during_processing");
+        endTimeline(sessionId);
+      } else if (existing.state === "active") {
+        // Already listening — user changed their mind. Cancel with feedback.
+        await this.cancelListening(session, sessionId);
+        return;
+      }
     }
 
     // Clear any leftover state
@@ -466,9 +506,14 @@ export class SuhailApp extends AppServer {
       if (current && current.state === "active") {
         this.listeningSessions.delete(sessionId);
         logger.info(`[${sessionId}] Listening mode timed out`);
+        mark(sessionId, "listening_timeout");
+        endTimeline(sessionId);
         await speakBilingual(session, messages.didntCatch, sessionId);
       }
     }, SuhailApp.LISTENING_TIMEOUT_MS);
+
+    startTimeline(sessionId, "command");
+    mark(sessionId, "swipe_received");
 
     // Fire photo capture in parallel with the listening cue. Store the promise
     // (not the resolved value) so the transcription handler can await it on
@@ -478,7 +523,8 @@ export class SuhailApp extends AppServer {
     this.listeningSessions.set(sessionId, { state: "active", timer, activatedAt: Date.now(), preCapturePromise });
     logger.info(`[${sessionId}] Listening mode activated (${SuhailApp.LISTENING_TIMEOUT_MS / 1000}s window)`);
 
-    await speakBilingual(session, messages.listening, sessionId);
+    await playCue(session, "listening", sessionId);
+    mark(sessionId, "listening_cue_done");
 
     // Reset activation time so the grace period starts after the cue finishes
     const entry = this.listeningSessions.get(sessionId);
@@ -497,7 +543,9 @@ export class SuhailApp extends AppServer {
       clearTimeout(state.timer);
       this.listeningSessions.delete(sessionId);
       logger.info(`[${sessionId}] Listening cancelled (was ${state.state})`);
-      await speakBilingual(session, messages.cancelled, sessionId);
+      mark(sessionId, "cancelled");
+      endTimeline(sessionId);
+      await playCue(session, "cancelled", sessionId);
     }
   }
 
@@ -511,6 +559,7 @@ export class SuhailApp extends AppServer {
       clearTimeout(state.timer);
       this.listeningSessions.delete(sessionId);
     }
+    endTimeline(sessionId);
   }
 
   /**
@@ -576,13 +625,15 @@ export class SuhailApp extends AppServer {
    */
   private async interruptAndReturnToListening(session: AppSession, sessionId: string): Promise<void> {
     this.logActivity("زر يسار قصير ← مقاطعة والعودة للاستماع", "system", "interrupt");
-
+    // Silence any in-flight TTS (e.g. a long OCR readout) so the user hears
+    // the listening cue immediately instead of waiting for the result to finish.
+    try { session.audio.stopAudio(2); } catch {}
     this.deactivateListening(sessionId);
     this.faceEnrollHandler.interruptEnrollment(sessionId);
     this.speakingSessions.delete(sessionId);
-
-    this.activateListening(session, sessionId);
-    await speakBilingual(session, messages.interruptedListening, sessionId);
+    // The listening chime is the user's confirmation that interrupt worked —
+    // no need for an extra "Interrupted" TTS.
+    await this.activateListening(session, sessionId);
   }
 
   /**

@@ -47,12 +47,6 @@ export class AIHandler {
     return faceService.recognizeAllFaces(imageBase64);
   }
 
-  /** Describe a scene with known face names injected */
-  async describeSceneWithFaces(imageBase64: string, knownNames: string[]): Promise<VisionResponse> {
-    logger.info("AI Handler → Scene Description with Face Context");
-    return visionService.describeSceneWithFaces(imageBase64, knownNames);
-  }
-
   /** Enroll a new face with a name */
   async enrollFace(name: string, imageBase64: string): Promise<string | null> {
     logger.info(`AI Handler → Face Enrollment for "${name}"`);
