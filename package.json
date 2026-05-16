@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-rekognition": "^3.887.0",
-    "@mentra/sdk": "latest",
+    "@mentra/sdk": "2.1.29",
     "sharp": "^0.34.5"
   },
   "devDependencies": {
