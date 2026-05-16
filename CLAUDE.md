@@ -42,7 +42,7 @@ Mentra Live is one of several glasses models supported by MentraOS. Here's what 
 | Feature | Mentra Live | Notes |
 |---------|-------------|-------|
 | Camera | 1080p (photo + video streaming) | `session.camera` |
-| Microphone | Yes (with Voice Activity Detection) | `session.events.onTranscription()` |
+| Microphone | Yes (with Voice Activity Detection) | `session.events.onTranscriptionForLanguage()` |
 | Speaker | Yes | `session.audio.speak()` |
 | Buttons | 2 physical buttons (left + right/camera) + swipe pad | Short press + long press each |
 | LEDs | RGB + White | `session.led` |
@@ -70,7 +70,7 @@ Mentra Live Glasses <-> User's Phone (Mentra App) <-> MentraOS Cloud (WebSocket)
 7. `onStop(sessionId, userId, reason)` is called (session object is NOT available here)
 
 ### Voice Commands — How They Work
-There is **no built-in wake word or command system** from Mentra. The SDK gives you **raw transcription text** via `session.events.onTranscription()`. Your app is responsible for parsing commands from that text. The Suhail app uses **LLM-based intent classification** (via OpenRouter) with keyword matching as a fallback — see `command-router.ts`.
+There is **no built-in wake word or command system** from Mentra. The SDK gives you **raw transcription text** via `session.events.onTranscriptionForLanguage(langCode, handler, opts)`. Your app is responsible for parsing commands from that text. The Suhail app uses **LLM-based intent classification** (via OpenRouter) with keyword matching as a fallback — see `command-router.ts`.
 
 **Swipe-to-command:** The user swipes **forward** on the swipe pad to activate a ~10 second listening window. The next voice transcription is processed as a command without needing a wake word. Swiping **backward** repeats the last response. The left button also works as a fallback (short press = interrupt + re-listen, long press = repeat). This prevents accidental triggers from background conversation and is more reliable than speech-based wake words.
 
@@ -116,6 +116,7 @@ Additional AppServer methods:
 | `session.camera` | `CameraManager` | Photo capture and video streaming |
 | `session.led` | `LedModule` | Control RGB LEDs (Mentra Live only) |
 | `session.location` | `LocationManager` | GPS location access |
+| `session.device` | `DeviceManager` | Reactive observables for battery, charging, case battery/charging, and wifi state |
 | `session.simpleStorage` | `SimpleStorage` | Persistent key-value storage (cloud-synced) |
 | `session.settings` | `SettingsManager` | App settings from Developer Console |
 | `session.capabilities` | `Capabilities \| null` | Detect device hardware at runtime |
@@ -125,65 +126,60 @@ Additional AppServer methods:
 
 ### Events (session.events)
 
+This section documents the four event helpers Suhail actually subscribes to. The SDK exposes many more (head position, VAD, phone notifications, battery events, audio chunks, location, connection lifecycle, settings updates) — see "Available but unused events" below if you ever need them.
+
 ```typescript
-// Voice transcription (speech-to-text done by MentraOS)
-session.events.onTranscription((data: TranscriptionData) => {
-  // data.text       — transcribed text (string)
-  // data.isFinal    — boolean, true when user finished speaking (ALWAYS check this)
-  // data.confidence — confidence score 0-1
-  // data.language   — language code e.g. "en-US"
-  // data.timestamp  — Date
-});
+// Voice transcription, locked to a specific language.
+// Suhail uses this instead of the generic onTranscription() because we want
+// the configured language only — no auto-detected switching mid-session.
+session.events.onTranscriptionForLanguage(
+  langCode,                          // e.g. "ar-SA" or "en-US"
+  async (data) => {
+    // data.text             — transcribed text (string)
+    // data.isFinal          — boolean, true when user finished speaking (ALWAYS check this)
+    // data.confidence       — confidence score 0-1
+    // data.detectedLanguage — what STT actually detected (may differ from langCode)
+    // data.timestamp        — Date
+  },
+  { disableLanguageIdentification: true }  // skip auto-detect, trust langCode
+);
 
 // Button press (Mentra Live has 2 buttons: "left" and "right"/"camera")
-session.events.onButtonPress((data: ButtonPress) => {
-  // data.buttonId  — "left" or "right" (also "camera" as alias for "right")
-  // data.pressType — "short" or "long"
+session.events.onButtonPress((event: ButtonPress) => {
+  // event.buttonId  — "left" or "right" (also "camera" as alias for "right")
+  // event.pressType — "short" or "long"
 });
 
-// Head position detection
-session.events.onHeadPosition((data: HeadPosition) => {
-  // "up" or "down"
+// Touch / swipe gestures on the swipe pad
+session.events.onTouchEvent((event) => {
+  // event.gesture_name  — "forward_swipe" | "backward_swipe" | ...
+  // event.device_model? — model string when available
 });
 
-// Voice activity detection (is the user speaking?)
-session.events.onVoiceActivity((data: Vad) => {
-  // boolean — true when voice detected
+// Permission errors (camera/mic not granted by user)
+session.events.onPermissionError((data) => {
+  // Speak a friendly instruction and stop trying the operation.
 });
-
-// Phone notifications forwarded from the user's phone
-session.events.onPhoneNotifications((data: PhoneNotification) => {
-  // data.app, data.title, data.content
-});
-
-// Battery levels
-session.events.onGlassesBattery((data: GlassesBatteryUpdate) => {
-  // data.level, data.charging
-});
-session.events.onPhoneBattery((data: PhoneBatteryUpdate) => { });
-
-// Calendar events
-session.events.onCalendarEvent((data: CalendarEvent) => { });
-
-// Raw audio chunks (requires explicit subscription)
-session.events.onAudioChunk((data: AudioChunk) => { });
-// Must subscribe first: session.subscribe([StreamType.AUDIO_CHUNK])
-
-// Location updates
-session.events.onLocation((data: LocationUpdate) => { });
-
-// Connection lifecycle
-session.events.onConnected((settings?: AppSettings) => { });
-session.events.onDisconnected((reason: string) => { });
-session.events.onError((error: WebSocketError | Error) => { });
-
-// Settings changes
-session.events.onSettingsUpdate((settings: AppSettings) => { });
 
 // All event listeners return an unsubscribe function:
-const unsubscribe = session.events.onTranscription(handler);
+const unsubscribe = session.events.onButtonPress(handler);
 unsubscribe(); // stop listening
 ```
+
+#### Available but unused events
+
+These exist on `session.events` but Suhail does not subscribe to them. Listed for future reference — verify the signature against the SDK source before using.
+
+- `onTranscription(handler)` — generic transcription with language auto-detect. Suhail prefers `onTranscriptionForLanguage` to avoid mid-session language switches.
+- `onHeadPosition(handler)` — head up/down detection
+- `onVoiceActivity(handler)` — is the user currently speaking?
+- `onPhoneNotifications(handler)` — phone notifications forwarded from the Mentra app
+- `onGlassesBattery(handler)` / `onPhoneBattery(handler)` — battery events. **Note:** Suhail uses `session.device.state.batteryLevel.onChange()` instead — see Device State below.
+- `onCalendarEvent(handler)` — calendar events
+- `onAudioChunk(handler)` — raw audio chunks. Requires `session.subscribe([StreamType.AUDIO_CHUNK])` first.
+- `onLocation(handler)` — location updates
+- `onConnected(handler)` / `onDisconnected(handler)` / `onError(handler)` — connection lifecycle
+- `onSettingsUpdate(handler)` — app settings changed in the developer console
 
 ### Camera (session.camera)
 
@@ -246,7 +242,13 @@ interface SpeakOptions {
     use_speaker_boost?: boolean;
   };
   volume?: number;                      // 0.0-1.0, default 1.0
+  trackId?: number;                     // Audio mixing track. Suhail always passes 2 (see below).
 }
+```
+
+**Track convention.** Suhail always speaks on `trackId: 2` (see `src/services/tts-service.ts`). Track 1 is left free so background audio (e.g., a future ambient cue or sound effect via `playAudio`) can play in parallel without interrupting speech. If you add new TTS calls, keep using track 2.
+
+```typescript
 
 // Available TTS models:
 // - "eleven_flash_v2_5" (multilingual, ~75ms latency) — DEFAULT
@@ -298,6 +300,29 @@ session.location.unsubscribeFromStream();
 ```
 
 Requires `LOCATION` permission in Developer Console.
+
+### Device State (session.device.state)
+
+Reactive observables for hardware state. Read once with `getSnapshot()`, then subscribe to changes. Suhail uses this to power `/api/status` for the companion `/webview`.
+
+```typescript
+// One-time read of all known state
+const snapshot = session.device.state.getSnapshot();
+// snapshot.batteryLevel      — number (0-100) or null
+// snapshot.charging          — boolean or null
+// snapshot.caseBatteryLevel  — number (0-100) or null
+// snapshot.caseCharging      — boolean or null
+// snapshot.wifiConnected     — boolean or null
+
+// Subscribe to changes (each observable returns an unsubscribe function)
+session.device.state.batteryLevel.onChange((level) => { /* ... */ });
+session.device.state.charging.onChange((charging) => { /* ... */ });
+session.device.state.caseBatteryLevel.onChange((level) => { /* ... */ });
+session.device.state.caseCharging.onChange((charging) => { /* ... */ });
+session.device.state.wifiConnected.onChange((connected) => { /* ... */ });
+```
+
+Prefer this over `session.events.onGlassesBattery()` for battery state — the observable always reflects the latest known value, and reading `getSnapshot()` on session start gives you immediate state without waiting for an event.
 
 ### Simple Storage (session.simpleStorage)
 
@@ -375,8 +400,8 @@ suhail/
 │   ├── commands/
 │   │   ├── base-command.ts             # AbstractCommandHandler — shared try/catch, photo capture, error speech
 │   │   ├── command-router.ts           # LLM intent classification (OpenRouter) + keyword fallback
-│   │   ├── scene-summarize.ts          # "Describe my surroundings" -> photo -> face recognition -> vision LLM (with names) -> speak
-│   │   ├── ocr-read-text.ts            # "Read this text" -> photo -> vision LLM OCR -> speak
+│   │   ├── scene-summarize.ts          # "Describe my surroundings" -> photo -> face recognition + scene description in parallel -> prepend names -> speak
+│   │   ├── ocr-read-text.ts            # "Read this text" -> photo -> vision LLM OCR -> speak (capped at OCR_MAX_CHARS=400 with "swipe to stop" hint)
 │   │   ├── face-recognize.ts           # "Who is this?" -> photo -> multi-face AWS Rekognition -> speak all names
 │   │   ├── face-enroll.ts              # "Enroll this person" -> photo -> ask name -> save (stateful, 2-step)
 │   │   ├── find-object.ts              # "Find my keys" -> photo -> object detection -> speak location
@@ -389,13 +414,15 @@ suhail/
 │   │   ├── ocr-service.ts              # OCR — delegates to vision-service.extractText()
 │   │   ├── face-service.ts             # AWS Rekognition (recognition + enrollment) + local file storage
 │   │   ├── tts-service.ts              # speak(), speakBilingual(), localize(), common messages
+│   │   ├── cue-service.ts              # Generates + plays short non-speech WAV chimes (listening/got-it/cancelled) — replaces slow TTS cues
 │   │   └── settings-store.ts           # Global settings store (speech speed, volume, voice preset, language)
 │   ├── utils/
 │   │   ├── config.ts                   # Environment variables (all from process.env with defaults)
 │   │   ├── logger.ts                   # Logger class with tag-based [Tag] prefix logging
 │   │   ├── image-utils.ts              # capturePhoto(session) -> base64 string (1920x1080), cropFace() for multi-face, base64 helpers
 │   │   ├── transcription-filter.ts     # Validates transcriptions (rejects garbled/wrong-script text)
-│   │   └── transcription-normalizer.ts # LLM-based script normalization (Arabic-script English → Latin)
+│   │   ├── transcription-normalizer.ts # LLM-based script normalization (Arabic-script English → Latin)
+│   │   └── timeline.ts                 # Per-session latency Timeline (mark/dump) — instrumentation only, no behavior
 │   └── types/
 │       └── index.ts                    # All shared interfaces and types
 ├── data/
@@ -419,7 +446,7 @@ suhail/
 
 ```
 User swipes forward -> listening mode activated (10s window)
-  -> User speaks -> Mentra glasses mic -> MentraOS STT -> onTranscription(data)
+  -> User speaks -> Mentra glasses mic -> MentraOS STT -> onTranscriptionForLanguage(data)
     -> check data.isFinal (skip partial transcriptions)
     -> check confidence >= MIN_CONFIDENCE (reject low-confidence)
     -> validate transcription (reject garbled/wrong-script via transcription-filter)
@@ -527,19 +554,18 @@ await speakBilingual(session, { ar: "جاري المعالجة...", en: "Process
 // Selects language based on config.defaultLanguage (from DEFAULT_LANGUAGE env var, default: "ar")
 ```
 
-Common messages are defined in `src/services/tts-service.ts` as the `messages` object: welcome, processing, cameraError, generalError, noResult, repeatNoHistory, listening, received, cancelled, didntCatch, listeningTimeout, unknownCommand, interruptedListening, permissionError.
+Common messages are defined in `src/services/tts-service.ts` as the `messages` object: welcome, processing, cameraError, generalError, noResult, repeatNoHistory, listening, received, cancelled, didntCatch, listeningTimeout, unknownCommand, permissionError.
 
 ## Services Layer
 
 ### AI Handler (ai-handler.ts)
 Facade class that routes to specific services. All command handlers use this instead of calling services directly.
 
-Methods: `describeScene()`, `describeSceneWithFaces()`, `readText()`, `recognizeFace()`, `recognizeAllFaces()`, `enrollFace()`, `listFaces()`, `deleteFace()`, `renameFace()`, `findObject()`, `recognizeCurrency()`, `answerVisualQuestion()`, `detectColor()`, `loadPersistedFaces()`
+Methods: `describeScene()`, `readText()`, `recognizeFace()`, `recognizeAllFaces()`, `enrollFace()`, `listFaces()`, `deleteFace()`, `renameFace()`, `findObject()`, `recognizeCurrency()`, `answerVisualQuestion()`, `detectColor()`, `loadPersistedFaces()`
 
 ### Vision Service (vision-service.ts) — WORKING
-Uses **OpenRouter API** with configurable model (default: `google/gemini-2.5-flash-lite`, via `VISION_MODEL` env var). All vision functions delegate to a shared `callVisionAPI` helper (extracted fetch boilerplate) with explicit `max_tokens` set. Handles 7 vision tasks:
-- `describeScene(base64)` — scene description for blind users
-- `describeSceneWithFaces(base64, knownNames)` — scene description with known face names injected into the prompt, so the LLM naturally uses names (e.g., "Abdullah is on your left") instead of generic descriptions
+Uses **OpenRouter API** with configurable model (default: `google/gemini-2.5-flash-lite`, via `VISION_MODEL` env var). All vision functions delegate to a shared `callVisionAPI` helper (extracted fetch boilerplate) with explicit `max_tokens` set. Handles 6 vision tasks:
+- `describeScene(base64)` — scene description for blind users (1-2 short sentences). Scene-summarize runs this in parallel with face recognition and prepends recognized names to the result.
 - `answerVisualQuestion(base64, question)` — VQA
 - `recognizeCurrency(base64)` — money denomination
 - `detectObject(base64, targetName)` — object location (e.g., "to your right, on the table")
@@ -603,6 +629,7 @@ Defined in `src/utils/config.ts`, loaded from `.env` (local) or Railway dashboar
 | `MIN_CONFIDENCE` | Min confidence for transcription filtering | `0.55` |
 | `VISION_MODEL` | OpenRouter model for vision tasks | `google/gemini-2.5-flash-lite` |
 | `CLASSIFICATION_MODEL` | OpenRouter model for intent classification | `google/gemini-2.5-flash-lite` |
+| `PUBLIC_BASE_URL` | Publicly reachable base URL (no trailing slash). When set, short generated chimes replace the "Listening" / "Got it" / "Cancelled" TTS cues. Dev: ngrok URL. Prod: Railway URL. | (empty — falls back to TTS) |
 
 ## Current State of the Project
 
@@ -625,7 +652,7 @@ All core features are **fully implemented** with real AI backends. The app is pr
 - **Device state tracking** — battery, case battery, charging, WiFi status via reactive `device.state` observables, exposed via `/api/status`
 - **Permission error handling** — `onPermissionError()` speaks a warning when camera/mic permissions are missing
 - **Audio track mixing** — TTS uses dedicated `trackId: 2`, leaving track 1 available for background audio
-- **High-resolution photos** — all camera captures use `"large"` (1920x1080) for accuracy without the long upload latency of `"full"`
+- **High-resolution photos** — all camera captures use `"large"` (1920x1080) with `compress: "medium"` to cut upload payload while keeping enough detail for vision/OCR
 - **Structured activity log** — enriched with type, command, result fields
 - **Face enrollment timestamps** — `enrolledAt` field on face metadata
 - **Landing page** — React + Vite app in `landing/`
@@ -650,12 +677,12 @@ The app uses a **listening state machine** to prevent accidental command trigger
 
 ### Activation
 - **Forward swipe** or **left short press** → transitions from idle to active
-- Speaks "تفضل" / "Listening" cue
+- Plays a short generated chime (`/cues/listening.wav`) when `PUBLIC_BASE_URL` is set, otherwise falls back to speaking "تفضل" / "Listening" via TTS. Chimes save ~2.5–3s per cue vs server-generated TTS.
 - Pre-captures a photo in parallel with a 3-second await timeout (optimization for faster command execution)
 
 ### Safeguards
 - **10-second timeout** (`LISTENING_TIMEOUT_MS`) — auto-returns to idle if no command received
-- **2-second grace period** (`LISTENING_GRACE_MS`) — ignores stale transcriptions immediately after activation (leftover audio from before the swipe)
+- **1-second grace period** (`LISTENING_GRACE_MS`) — ignores stale transcriptions immediately after activation (leftover audio from before the swipe)
 - **TTS echo guard** (`TTS_ECHO_BUFFER_MS = 1500ms`) — marks session as "speaking" during TTS output + 1.5s buffer, so the mic doesn't pick up the app's own speech as a command
 - **Confidence filtering** — rejects transcriptions below `MIN_CONFIDENCE` threshold
 - **Script validation** — via `transcription-filter.ts`, rejects garbled or wrong-script text
@@ -663,6 +690,8 @@ The app uses a **listening state machine** to prevent accidental command trigger
 
 ### Interrupts
 - Left short press during **active** or **processing** → cancels current operation, returns to listening
+- **Forward swipe during processing** → silences the in-flight result TTS (`session.audio.stopAudio(2)`), aborts the handler, and immediately re-enters listening mode (no "Cancelled" cue — the user clearly wants to issue a new command). Useful for cutting off long OCR results or scene descriptions.
+- Forward swipe during **active** → cancels with the "Cancelled" cue (chime if available, TTS fallback).
 - Backward swipe or left long press → repeats last response (works from any state)
 
 ## Mini App API (app.ts)
