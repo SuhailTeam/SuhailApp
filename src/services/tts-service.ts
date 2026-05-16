@@ -2,6 +2,7 @@ import type { AppSession } from "@mentra/sdk";
 import type { BilingualMessage, Language } from "../types";
 import { config } from "../utils/config";
 import { Logger } from "../utils/logger";
+import { mark } from "../utils/timeline";
 import { getSettings } from "./settings-store";
 
 const logger = new Logger("TTS");
@@ -41,6 +42,8 @@ export async function speak(session: AppSession, text: string, sessionId?: strin
   try {
     logger.info(`Speaking: "${text.substring(0, 80)}${text.length > 80 ? "..." : ""}"`);
     const settings = getSettings();
+    const tag = text.length > 20 ? `${text.slice(0, 20)}…` : text;
+    mark(sessionId, `tts_start[${tag}]`);
     await session.audio.speak(text, {
       voice_id: getVoiceId(settings.voicePreset),
       voice_settings: {
@@ -49,6 +52,7 @@ export async function speak(session: AppSession, text: string, sessionId?: strin
       volume: settings.volume,
       trackId: 2,
     });
+    mark(sessionId, `tts_done[${tag}]`);
     if (sessionId) {
       lastResponses.set(sessionId, text);
     }
@@ -124,10 +128,6 @@ export const messages = {
   unknownCommand: {
     ar: "لم أفهم طلبك. يمكنني وصف المحيط، قراءة النصوص، التعرف على الوجوه، البحث عن أشياء، معرفة العملات، أو تحديد الألوان.",
     en: "I didn't understand that. I can describe your surroundings, read text, recognize faces, find objects, identify currency, or detect colors.",
-  },
-  interruptedListening: {
-    ar: "تمت المقاطعة. عدنا لوضع الاستماع.",
-    en: "Interrupted. Back to listening mode.",
   },
   permissionError: {
     ar: "يرجى تفعيل صلاحيات الكاميرا والميكروفون في تطبيق منترا.",

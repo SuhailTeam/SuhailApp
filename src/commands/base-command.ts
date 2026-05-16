@@ -4,6 +4,7 @@ import { AIHandler } from "../services/ai-handler";
 import { speakBilingual, messages } from "../services/tts-service";
 import { capturePhoto } from "../utils/image-utils";
 import { Logger } from "../utils/logger";
+import { mark } from "../utils/timeline";
 
 /**
  * Base class for photo-based command handlers.
@@ -16,24 +17,30 @@ import { Logger } from "../utils/logger";
  */
 export abstract class AbstractCommandHandler implements CommandHandler {
   protected readonly logger: Logger;
+  protected readonly tag: string;
   protected readonly ai = new AIHandler();
 
   constructor(tag: string) {
+    this.tag = tag;
     this.logger = new Logger(tag);
   }
 
   async execute(session: AppSession, params?: Record<string, string>): Promise<void> {
     const sessionId = params?._sessionId;
+    mark(sessionId, `handler_start[${this.tag}]`);
     try {
       const photo = params?._preCapture || await capturePhoto(session);
       if (!photo) {
         await speakBilingual(session, messages.cameraError, sessionId);
         return;
       }
+      mark(sessionId, params?._preCapture ? "photo_ready[pre]" : "photo_ready[fresh]");
       await this.process(session, photo, params, sessionId);
     } catch (error) {
       this.logger.error("Command failed:", error);
       await speakBilingual(session, messages.generalError, sessionId);
+    } finally {
+      mark(sessionId, "handler_done");
     }
   }
 
