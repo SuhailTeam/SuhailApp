@@ -1038,6 +1038,13 @@
     renderStatus();
     renderContacts();
     renderActivity();
+
+    // Refresh slider gradients — direction depends on document dir, which may
+    // have just flipped on a language change.
+    const sp = document.getElementById('speed-slider');
+    const vol = document.getElementById('volume-slider');
+    if (sp) updateSliderGradient(sp);
+    if (vol) updateSliderGradient(vol);
   }
 
   // ─── Commands List ───
@@ -1301,7 +1308,10 @@
     const max = parseFloat(slider.max);
     const val = parseFloat(slider.value);
     const pct = ((val - min) / (max - min)) * 100;
-    slider.style.background = `linear-gradient(to right, #06B6D4 0%, #06B6D4 ${pct}%, #252a3a ${pct}%, #252a3a 100%)`;
+    // In RTL the slider thumb moves right-to-left, so the filled portion must
+    // grow from the right edge — otherwise the fill and the thumb desync.
+    const dir = document.documentElement.dir === 'rtl' ? 'to left' : 'to right';
+    slider.style.background = `linear-gradient(${dir}, #06B6D4 0%, #06B6D4 ${pct}%, #252a3a ${pct}%, #252a3a 100%)`;
   }
 
   speedSlider.addEventListener('input', () => {

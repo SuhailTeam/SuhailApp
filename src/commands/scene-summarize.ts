@@ -5,7 +5,7 @@ import { config } from "../utils/config";
 import { mark } from "../utils/timeline";
 import { AbstractCommandHandler } from "./base-command";
 
-const MAX_SCENE_CHARS = 180;
+const MAX_SCENE_CHARS = 350;
 
 const truncationSuffix = { ar: " وغيره. اسحب للأمام للإيقاف.", en: " ...and more. Swipe forward to stop." };
 

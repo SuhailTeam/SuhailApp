@@ -1,5 +1,6 @@
 import type { AppSession } from "@mentra/sdk";
 import { speak, speakBilingual } from "../services/tts-service";
+import { getSettings } from "../services/settings-store";
 import { config } from "../utils/config";
 import { AbstractCommandHandler } from "./base-command";
 
@@ -32,7 +33,7 @@ export class FaceRecognizeCommand extends AbstractCommandHandler {
     const known = result.faces.filter(f => f.isKnown && f.name && f.confidence >= config.confidenceThreshold);
     const unknownCount = result.totalDetected - known.length;
 
-    if (config.defaultLanguage === "ar") {
+    if (getSettings().language === "ar") {
       const parts: string[] = [];
       if (known.length > 0) parts.push(`أشوف ${known.map(f => f.name).join(" و ")}`);
       if (unknownCount === 1) parts.push("شخص واحد ما أعرفه");

@@ -405,7 +405,7 @@ suhail/
 │   │   ├── face-recognize.ts           # "Who is this?" -> photo -> multi-face AWS Rekognition -> speak all names
 │   │   ├── face-enroll.ts              # "Enroll this person" -> photo -> ask name -> save (stateful, 2-step)
 │   │   ├── find-object.ts              # "Find my keys" -> photo -> object detection -> speak location
-│   │   ├── currency-recognize.ts       # "Count money" -> photo -> vision LLM -> speak denomination
+│   │   ├── currency-recognize.ts       # "Count money" -> photo -> vision LLM -> count bills per denomination -> speak total
 │   │   ├── visual-qa.ts                # Any question -> photo + question -> vision LLM -> speak answer
 │   │   └── color-detect.ts             # "What color is this?" -> photo -> color analysis -> speak color
 │   ├── services/
