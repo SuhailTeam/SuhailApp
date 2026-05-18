@@ -1,18 +1,19 @@
 import { config } from "../utils/config";
 import { Logger } from "../utils/logger";
-import type { VisionResponse } from "../types";
+import { getSettings } from "./settings-store";
+import type { VisionResponse, CurrencyResult, CurrencyBill } from "../types";
 
 const logger = new Logger("VisionService");
 
-/** Returns the language instruction based on config */
+/** Returns the language instruction based on the user's current language setting */
 function langInstruction(): string {
-  return config.defaultLanguage === "ar"
+  return getSettings().language === "ar"
     ? "Respond in Arabic."
     : "Respond in English.";
 }
 
 function langName(): string {
-  return config.defaultLanguage === "ar" ? "Arabic" : "English";
+  return getSettings().language === "ar" ? "Arabic" : "English";
 }
 
 /* ── Shared OpenRouter vision helper ─────────────────────── */
@@ -73,13 +74,13 @@ export async function describeScene(imageBase64: string): Promise<VisionResponse
   logger.info("Sending image to OpenRouter API...");
   try {
     const description = await callVisionAPI({
-      prompt: `You are the eyes of a blind person. Describe what's in front of them in ONE short sentence, MAXIMUM 20 words. Be telegraphic. Focus only on the most important thing — a person, a major obstacle, or the main object. Skip details, brand names, and what's on screens. ${langInstruction()}`,
+      prompt: `You are describing a scene to a blind person wearing smart glasses. In 2-3 short sentences (~50 words total), describe what they're facing: the setting or space they're in, the main objects in view, and where things are positioned relative to them (e.g., "on the desk in front of you", "to your right"). Mention people you see but don't try to identify them. Skip minor details like brand names or text on screens. Use natural spoken language — no markdown, lists, or symbols. ${langInstruction()}`,
       imageBase64,
-      maxTokens: 80,
+      maxTokens: 200,
     });
     logger.info(`Received scene description: ${description}`);
     return {
-      description: description || (config.defaultLanguage === "ar"
+      description: description || (getSettings().language === "ar"
         ? "عذرًا، لم أتمكن من الحصول على وصف للصورة."
         : "Sorry, I couldn't get a description of the image."),
       confidence: 0.90,
@@ -106,7 +107,7 @@ export async function answerVisualQuestion(
     });
     logger.info(`Received VQA answer: ${description}`);
     return {
-      description: description || (config.defaultLanguage === "ar"
+      description: description || (getSettings().language === "ar"
         ? "عذرًا، لم أتمكن من الإجابة على السؤال."
         : "Sorry, I couldn't answer the question."),
       confidence: 0.90,
@@ -118,26 +119,111 @@ export async function answerVisualQuestion(
 }
 
 /**
- * Sends a photo to OpenRouter for currency/money recognition.
+ * Parses the LLM's JSON currency response into a CurrencyResult.
+ * Defensive: malformed or empty responses become an empty result, never throws.
+ * Groups bills by currency, picks the largest-total currency as dominant.
  */
-export async function recognizeCurrency(imageBase64: string): Promise<{
-  denomination: string;
-  currency: string;
-  confidence: number;
-}> {
+function parseCurrencyResponse(raw: string): CurrencyResult {
+  let parsed: any;
+  try {
+    parsed = JSON.parse(cleanJSON(raw) || "{}");
+  } catch {
+    return { bills: [], total: 0, currency: "UNKNOWN", confidence: 0.90 };
+  }
+
+  const rawBills = Array.isArray(parsed?.bills) ? parsed.bills : [];
+
+  type Entry = { denomination: number; count: number; currency: string };
+  const valid: Entry[] = [];
+  for (const b of rawBills) {
+    const denom = Number(b?.denomination);
+    const count = Number(b?.count);
+    const curr = typeof b?.currency === "string" ? b.currency.toUpperCase().trim() : "UNKNOWN";
+    if (
+      Number.isFinite(denom) && denom > 0 &&
+      Number.isFinite(count) && count > 0 && count < 1000
+    ) {
+      valid.push({ denomination: denom, count: Math.floor(count), currency: curr || "UNKNOWN" });
+    }
+  }
+
+  if (valid.length === 0) {
+    return { bills: [], total: 0, currency: "UNKNOWN", confidence: 0.90 };
+  }
+
+  const byCurrency = new Map<string, Entry[]>();
+  for (const e of valid) {
+    if (!byCurrency.has(e.currency)) byCurrency.set(e.currency, []);
+    byCurrency.get(e.currency)!.push(e);
+  }
+
+  const buckets = Array.from(byCurrency.entries())
+    .map(([c, entries]) => ({
+      currency: c,
+      entries,
+      total: entries.reduce((s, e) => s + e.denomination * e.count, 0),
+    }))
+    .sort((a, b) => b.total - a.total);
+
+  const mergeBucket = (entries: Entry[]): CurrencyBill[] => {
+    const merged = new Map<number, number>();
+    for (const e of entries) {
+      merged.set(e.denomination, (merged.get(e.denomination) ?? 0) + e.count);
+    }
+    return Array.from(merged.entries())
+      .map(([denomination, count]) => ({ denomination, count }))
+      .sort((a, b) => b.denomination - a.denomination);
+  };
+
+  const dominant = buckets[0];
+  const others = buckets.slice(1);
+
+  return {
+    bills: mergeBucket(dominant.entries),
+    total: dominant.total,
+    currency: dominant.currency,
+    confidence: 0.90,
+    ...(others.length > 0 && {
+      otherCurrencies: others.map(o => ({
+        currency: o.currency,
+        bills: mergeBucket(o.entries),
+        total: o.total,
+      })),
+    }),
+  };
+}
+
+/**
+ * Sends a photo to OpenRouter for currency/money recognition.
+ * Counts each denomination separately so the caller can speak a full summary
+ * (e.g. "3 bills of 500 Riyal, total 1500") rather than picking a single bill.
+ */
+export async function recognizeCurrency(imageBase64: string): Promise<CurrencyResult> {
   logger.info("Sending image to OpenRouter for currency recognition...");
   try {
     const raw = await callVisionAPI({
-      prompt: "Identify the currency and denomination of the money in this image. Respond ONLY with a raw JSON object (no markdown) containing 'denomination' (string, e.g. '50') and 'currency' (string, e.g. 'SAR').",
+      prompt: `You are looking at a photo through smart glasses worn by a blind user who is trying to count their cash.
+
+Carefully count EVERY paper bill (banknote) and coin visible in the image. Group them by denomination — do NOT just describe the most prominent bill.
+
+For each denomination present, return an entry with:
+- "denomination": the numeric face value as a number (e.g. 500, 100, 50, not "500 SAR")
+- "count": how many bills/coins of that exact denomination you see as a number
+- "currency": the 3-letter ISO code ("SAR" for Saudi Riyal, "USD" for US Dollar, "EUR" for Euro, "AED" for UAE Dirham, etc.)
+
+Stacked, overlapping, or partially visible bills still count if you can identify their denomination. Do NOT count the same physical bill twice. Do NOT invent bills you cannot actually see.
+
+Respond ONLY with a raw JSON object (no markdown, no commentary) in this exact shape:
+{"bills": [{"denomination": 500, "count": 3, "currency": "SAR"}], "notes": ""}
+
+If no money is visible, respond with: {"bills": [], "notes": "no money visible"}
+If you can see bills but cannot identify the denomination, respond with: {"bills": [], "notes": "denomination unclear"}`,
       imageBase64,
-      maxTokens: 100,
+      maxTokens: 300,
     });
-    const parsed = JSON.parse(cleanJSON(raw) || "{}");
-    return {
-      denomination: parsed.denomination || "0",
-      currency: parsed.currency || "UNKNOWN",
-      confidence: 0.90,
-    };
+    const result = parseCurrencyResponse(raw);
+    logger.info(`Currency recognized: ${result.bills.length} denomination(s), total ${result.total} ${result.currency}`);
+    return result;
   } catch (error) {
     logger.error("Failed to recognize currency via OpenRouter API", error);
     throw error;
@@ -219,7 +305,7 @@ export async function detectColor(imageBase64: string): Promise<{
     });
     const parsed = JSON.parse(cleanJSON(raw) || "{}");
     return {
-      colorName: parsed.colorName || (config.defaultLanguage === "ar" ? "غير معروف" : "unknown"),
+      colorName: parsed.colorName || (getSettings().language === "ar" ? "غير معروف" : "unknown"),
       hex: parsed.hex || "#000000",
     };
   } catch (error) {

@@ -202,6 +202,10 @@ export class SuhailApp extends AppServer {
       }
     });
 
+    expressApp.get("/", (_req: any, res: any) => {
+      res.redirect("/webview");
+    });
+
     expressApp.get("/webview", (_req: any, res: any) => {
       res.sendFile("index.html", { root: "./public" });
     });
@@ -253,8 +257,11 @@ export class SuhailApp extends AppServer {
     // Welcome the user
     await speakBilingual(session, messages.welcome);
 
-    // Listen for voice transcriptions locked to the user's preferred language
-    const langCode = config.defaultLanguage === "ar" ? "ar-SA" : "en-US";
+    // Listen for voice transcriptions locked to the user's preferred language.
+    // Bound at session start from the persisted settings (loaded above) — the
+    // stream can't be re-bound mid-session, so a language change requires restart.
+    const sessionLanguage = getSettings().language;
+    const langCode = sessionLanguage === "ar" ? "ar-SA" : "en-US";
     logger.info(`[${sessionId}] Transcription language locked to: ${langCode}`);
     session.events.onTranscriptionForLanguage(langCode, async (data) => {
       if (!data.isFinal) return;
@@ -266,12 +273,13 @@ export class SuhailApp extends AppServer {
         return;
       }
 
-      // Discard transcriptions where detected language doesn't match configured language
-      // Exception: allow Arabic-script text through when lang="en" (possible transliteration)
-      if (data.detectedLanguage && !data.detectedLanguage.startsWith(config.defaultLanguage)) {
+      // Discard transcriptions where detected language doesn't match this stream's
+      // language. Exception: allow Arabic-script text through when lang="en"
+      // (possible transliteration).
+      if (data.detectedLanguage && !data.detectedLanguage.startsWith(sessionLanguage)) {
         const hasArabicScript = /[\u0600-\u06FF]/.test(data.text);
         const hasLatinChars = /[a-zA-Z]/.test(data.text);
-        const mightBeTransliteration = config.defaultLanguage === "en" && hasArabicScript && !hasLatinChars;
+        const mightBeTransliteration = sessionLanguage === "en" && hasArabicScript && !hasLatinChars;
 
         if (!mightBeTransliteration) {
           logger.info(`[${sessionId}] Dropped language-mismatch transcription (detected=${data.detectedLanguage}, expected=${langCode}): "${data.text}"`);
@@ -281,7 +289,7 @@ export class SuhailApp extends AppServer {
       }
 
       // Discard garbled or junk transcriptions
-      if (!isValidTranscription(data.text, config.defaultLanguage)) {
+      if (!isValidTranscription(data.text, sessionLanguage)) {
         logger.info(`[${sessionId}] Dropped invalid transcription: "${data.text}"`);
         return;
       }
@@ -289,7 +297,7 @@ export class SuhailApp extends AppServer {
       mark(sessionId, "transcription_final");
 
       // Normalize script mismatches (e.g., Arabic-script English transliterations)
-      const normalizedText = await normalizeTranscription(data.text, config.defaultLanguage);
+      const normalizedText = await normalizeTranscription(data.text, sessionLanguage);
       mark(sessionId, "normalize_done");
 
       logger.info(`[${sessionId}] Transcription (confidence=${confidence.toFixed(2)}): "${normalizedText}"`);

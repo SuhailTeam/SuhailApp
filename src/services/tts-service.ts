@@ -133,4 +133,12 @@ export const messages = {
     ar: "يرجى تفعيل صلاحيات الكاميرا والميكروفون في تطبيق منترا.",
     en: "Please enable camera and microphone permissions in the Mentra app.",
   },
+  noMoney: {
+    ar: "ما أشوف فلوس في الصورة.",
+    en: "I don't see any money in the image.",
+  },
+  unknownCurrency: {
+    ar: "أشوف فلوس بس ما قدرت أعرف نوع العملة.",
+    en: "I see money but couldn't identify the currency.",
+  },
 } satisfies Record<string, BilingualMessage>;

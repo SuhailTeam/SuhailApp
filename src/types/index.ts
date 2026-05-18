@@ -87,10 +87,20 @@ export interface ObjectDetectionResult {
   confidence: number;
 }
 
-/** Currency detection result */
+/** A single denomination group within a currency recognition result */
+export interface CurrencyBill {
+  denomination: number;
+  count: number;
+}
+
+/** Currency detection result. Groups bills by denomination and reports a total. */
 export interface CurrencyResult {
-  denomination: string;
+  bills: CurrencyBill[];
+  total: number;
+  /** Dominant currency ISO code (e.g. "SAR"), or "UNKNOWN" when bills detected but currency unclear */
   currency: string;
+  /** Non-dominant currencies present in the same photo. Usually undefined. */
+  otherCurrencies?: Array<{ currency: string; bills: CurrencyBill[]; total: number }>;
   confidence: number;
 }
 

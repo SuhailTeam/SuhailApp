@@ -86,15 +86,10 @@ export class AIHandler {
     };
   }
 
-  /** Recognize currency in a photo */
+  /** Recognize currency in a photo (grouped by denomination, with totals) */
   async recognizeCurrency(imageBase64: string): Promise<CurrencyResult> {
     logger.info("AI Handler → Currency Recognition");
-    const result = await visionService.recognizeCurrency(imageBase64);
-    return {
-      denomination: result.denomination,
-      currency: result.currency,
-      confidence: result.confidence,
-    };
+    return visionService.recognizeCurrency(imageBase64);
   }
 
   /** Answer a visual question about a photo */
